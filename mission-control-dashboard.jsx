@@ -541,12 +541,133 @@ function ImportPanel({ projects, onImport, t }) {
   );
 }
 
+function FilePanel({ files, onCreate, onUpdate, onDelete, t }) {
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editContent, setEditContent] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 6,
+    border: "1px solid var(--border-primary)",
+    background: "var(--bg-input)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontFamily: "'JetBrains Mono', monospace",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const handleCreate = async () => {
+    if (!newName.trim() || saving) return;
+    setSaving(true);
+    await onCreate(newName, newContent);
+    setNewName("");
+    setNewContent("");
+    setShowNew(false);
+    setSaving(false);
+  };
+
+  const handleSaveEdit = async (fileId) => {
+    setSaving(true);
+    await onUpdate(fileId, editContent);
+    setEditingId(null);
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+          {t("files")}
+        </div>
+        <button
+          onClick={() => setShowNew(!showNew)}
+          style={{
+            all: "unset", cursor: "pointer", fontSize: 14, lineHeight: 1,
+            width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center",
+            borderRadius: 4, border: "1px solid var(--border-primary)", color: "var(--text-tertiary)",
+          }}
+        >+</button>
+      </div>
+
+      {showNew && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, animation: "fadeSlideIn 0.2s ease" }}>
+          <input type="text" placeholder={t("fileName")} value={newName} onChange={(e) => setNewName(e.target.value)} style={inputStyle} />
+          <textarea placeholder={t("fileContent")} value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={6} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={handleCreate} disabled={!newName.trim() || saving} style={{
+              flex: 1, padding: "8px", borderRadius: 6, border: "none",
+              background: newName.trim() ? "var(--bg-btn)" : "var(--bg-btn-disabled)",
+              color: newName.trim() ? "var(--text-secondary)" : "var(--text-tertiary)",
+              fontSize: 11, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", cursor: newName.trim() ? "pointer" : "default",
+            }}>{saving ? "..." : t("save")}</button>
+            <button onClick={() => setShowNew(false)} style={{
+              padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border-primary)",
+              background: "transparent", color: "var(--text-tertiary)",
+              fontSize: 11, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", cursor: "pointer",
+            }}>{t("cancel")}</button>
+          </div>
+        </div>
+      )}
+
+      {files.length === 0 && !showNew && (
+        <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{t("noFiles")}</div>
+      )}
+
+      {files.map((file) => (
+        <div key={file.id} style={{ borderRadius: 6, border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "8px 12px", background: "var(--bg-inset)",
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace" }}>
+              {file.name}
+            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                onClick={() => { setEditingId(editingId === file.id ? null : file.id); setEditContent(file.content || ""); }}
+                style={{ all: "unset", cursor: "pointer", fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}
+              >{editingId === file.id ? t("cancel") : t("editProject")}</button>
+              <button
+                onClick={() => onDelete(file.id)}
+                style={{ all: "unset", cursor: "pointer", fontSize: 10, color: "#EF4444", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}
+              >{t("deleteFile")}</button>
+            </div>
+          </div>
+          {editingId === file.id ? (
+            <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+              <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={8} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+              <button onClick={() => handleSaveEdit(file.id)} disabled={saving} style={{
+                padding: "8px", borderRadius: 6, border: "none", background: "var(--bg-btn)",
+                color: "var(--text-secondary)", fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                textTransform: "uppercase", cursor: "pointer",
+              }}>{saving ? "..." : t("save")}</button>
+            </div>
+          ) : (
+            <pre style={{
+              margin: 0, padding: "10px 12px", fontSize: 11, lineHeight: 1.5,
+              color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace",
+              whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 200, overflow: "auto",
+            }}>{file.content || ""}</pre>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // --- MAIN APP ---
 export default function MissionControl() {
   const [projects, setProjects] = useState([]);
   const [recentCrumbs, setRecentCrumbs] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectCrumbs, setProjectCrumbs] = useState([]);
+  const [projectFiles, setProjectFiles] = useState([]);
   const [view, setView] = useState("grid");
   const [isDark, setIsDark] = useState(false);
   const [lang, setLang] = useState(() => localStorage.getItem("mc-lang") || "es");
@@ -561,7 +682,12 @@ export default function MissionControl() {
   const loadProjects = useCallback(async () => {
     try {
       const data = await api.getProjects();
-      setProjects(data.projects || []);
+      const sorted = (data.projects || []).sort((a, b) => {
+        const dateA = a.lastCrumb ? new Date(a.lastCrumb.timestamp) : new Date(0);
+        const dateB = b.lastCrumb ? new Date(b.lastCrumb.timestamp) : new Date(0);
+        return dateB - dateA;
+      });
+      setProjects(sorted);
     } catch (e) {
       console.error("Failed to load projects:", e);
     }
@@ -589,10 +715,14 @@ export default function MissionControl() {
     setView("detail");
     setEditingProject(false);
     try {
-      const data = await api.getCrumbs(project.id);
-      setProjectCrumbs(data.crumbs || []);
+      const [crumbsData, filesData] = await Promise.all([
+        api.getCrumbs(project.id),
+        api.getFiles(project.id),
+      ]);
+      setProjectCrumbs(crumbsData.crumbs || []);
+      setProjectFiles(filesData.files || []);
     } catch (e) {
-      console.error("Failed to load crumbs:", e);
+      console.error("Failed to load project data:", e);
     }
   };
 
@@ -600,6 +730,7 @@ export default function MissionControl() {
     setView("grid");
     setSelectedProject(null);
     setProjectCrumbs([]);
+    setProjectFiles([]);
     setEditingProject(false);
   };
 
@@ -643,6 +774,24 @@ export default function MissionControl() {
       setProjectCrumbs(fresh.crumbs || []);
     }
     return res;
+  };
+
+  const handleCreateFile = async (name, content) => {
+    await api.createFile({ projectId: selectedProject.id, name, content });
+    const fresh = await api.getFiles(selectedProject.id);
+    setProjectFiles(fresh.files || []);
+  };
+
+  const handleUpdateFile = async (fileId, content) => {
+    await api.updateFile({ fileId, content });
+    const fresh = await api.getFiles(selectedProject.id);
+    setProjectFiles(fresh.files || []);
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    await api.deleteFile({ fileId, projectId: selectedProject.id });
+    const fresh = await api.getFiles(selectedProject.id);
+    setProjectFiles(fresh.files || []);
   };
 
   // Enrich recent crumbs with project info
@@ -963,6 +1112,16 @@ export default function MissionControl() {
                     </div>
                   );
                 })}
+              </div>
+
+              <div style={{ padding: "18px 20px", borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border-primary)" }}>
+                <FilePanel
+                  files={projectFiles}
+                  onCreate={handleCreateFile}
+                  onUpdate={handleUpdateFile}
+                  onDelete={handleDeleteFile}
+                  t={t}
+                />
               </div>
             </div>
           </div>

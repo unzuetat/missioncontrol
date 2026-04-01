@@ -35,6 +35,13 @@ const strings = {
     noProjects: 'No hay proyectos. ¡Crea el primero!',
     subtitle: 'fuentes · 1 timeline',
     parseError: 'Error al parsear JSON. Revisa el formato.',
+    files: 'Archivos',
+    newFile: 'Nuevo archivo',
+    fileName: 'Nombre del archivo',
+    fileContent: 'Contenido',
+    fileSaved: '✓ Guardado',
+    deleteFile: 'Borrar',
+    noFiles: 'Sin archivos',
   },
   en: {
     projects: 'Projects',
@@ -72,6 +79,13 @@ const strings = {
     noProjects: 'No projects yet. Create your first one!',
     subtitle: 'sources · 1 timeline',
     parseError: 'JSON parse error. Check the format.',
+    files: 'Files',
+    newFile: 'New file',
+    fileName: 'File name',
+    fileContent: 'Content',
+    fileSaved: '✓ Saved',
+    deleteFile: 'Delete',
+    noFiles: 'No files',
   },
 };
 
