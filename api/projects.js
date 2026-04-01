@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'name is required' });
     }
 
-    const kv = getKv();
+    const kv = await getKv();
     const id = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -33,8 +33,8 @@ export default async function handler(req, res) {
       color: color || '#888888',
     };
 
-    await kv.sadd(keys.projectSet, id);
-    await kv.hset(keys.project(id), project);
+    await kv.sAdd(keys.projectSet, id);
+    await kv.hSet(keys.project(id), project);
 
     return res.status(201).json({ project: { id, ...project } });
   }

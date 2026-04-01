@@ -19,8 +19,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'projectId and crumbs array are required' });
   }
 
-  const kv = getKv();
-  const exists = await kv.sismember(keys.projectSet, projectId);
+  const kv = await getKv();
+  const exists = await kv.sIsMember(keys.projectSet, projectId);
   if (!exists) {
     return res.status(404).json({ error: 'Project not found' });
   }

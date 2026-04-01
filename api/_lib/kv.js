@@ -1,15 +1,17 @@
-import { createClient } from '@vercel/kv';
+import { createClient } from 'redis';
 
-let kvClient;
+let client;
 
-export function getKv() {
-  if (!kvClient) {
-    kvClient = createClient({
-      url: process.env.KV_REST_API_URL,
-      token: process.env.KV_REST_API_TOKEN,
-    });
+async function getClient() {
+  if (!client) {
+    client = createClient({ url: process.env.REDIS_URL });
+    client.on('error', (err) => console.error('Redis error:', err));
+    await client.connect();
   }
-  return kvClient;
+  if (!client.isOpen) {
+    await client.connect();
+  }
+  return client;
 }
 
 export const keys = {
@@ -23,46 +25,25 @@ export const keys = {
 const RECENT_CRUMBS_MAX = 50;
 
 export async function getAllProjects() {
-  const kv = getKv();
-  const ids = await kv.smembers(keys.projectSet);
+  const kv = await getClient();
+  const ids = await kv.sMembers(keys.projectSet);
   if (!ids || ids.length === 0) return [];
 
-  const pipeline = kv.pipeline();
-  for (const id of ids) {
-    pipeline.hgetall(keys.project(id));
-  }
-  const results = await pipeline.exec();
-
   const projects = [];
-  for (let i = 0; i < ids.length; i++) {
-    if (results[i]) {
-      projects.push({ id: ids[i], ...results[i] });
+  for (const id of ids) {
+    const data = await kv.hGetAll(keys.project(id));
+    if (data && Object.keys(data).length > 0) {
+      projects.push({ id, ...data });
     }
   }
 
   // Fetch lastCrumb for each project
-  const crumbPipeline = kv.pipeline();
   for (const p of projects) {
-    crumbPipeline.zrange(keys.projectCrumbs(p.id), 0, 0, { rev: true });
-  }
-  const crumbIdResults = await crumbPipeline.exec();
-
-  const crumbDetailPipeline = kv.pipeline();
-  const crumbMap = [];
-  for (let i = 0; i < projects.length; i++) {
-    const crumbIds = crumbIdResults[i];
-    if (crumbIds && crumbIds.length > 0) {
-      crumbDetailPipeline.hgetall(keys.crumb(crumbIds[0]));
-      crumbMap.push(i);
-    }
-  }
-
-  if (crumbMap.length > 0) {
-    const crumbDetails = await crumbDetailPipeline.exec();
-    for (let j = 0; j < crumbMap.length; j++) {
-      const projectIdx = crumbMap[j];
-      if (crumbDetails[j]) {
-        projects[projectIdx].lastCrumb = crumbDetails[j];
+    const topCrumbs = await kv.zRange(keys.projectCrumbs(p.id), 0, 0, { REV: true });
+    if (topCrumbs && topCrumbs.length > 0) {
+      const crumbData = await kv.hGetAll(keys.crumb(topCrumbs[0]));
+      if (crumbData && Object.keys(crumbData).length > 0) {
+        p.lastCrumb = crumbData;
       }
     }
   }
@@ -71,33 +52,37 @@ export async function getAllProjects() {
 }
 
 export async function getProjectCrumbs(projectId) {
-  const kv = getKv();
-  const crumbIds = await kv.zrange(keys.projectCrumbs(projectId), 0, -1, { rev: true });
+  const kv = await getClient();
+  const crumbIds = await kv.zRange(keys.projectCrumbs(projectId), 0, -1, { REV: true });
   if (!crumbIds || crumbIds.length === 0) return [];
 
-  const pipeline = kv.pipeline();
+  const crumbs = [];
   for (const id of crumbIds) {
-    pipeline.hgetall(keys.crumb(id));
+    const data = await kv.hGetAll(keys.crumb(id));
+    if (data && Object.keys(data).length > 0) {
+      crumbs.push({ id, ...data });
+    }
   }
-  const results = await pipeline.exec();
-  return results.filter(Boolean).map((c, i) => ({ id: crumbIds[i], ...c }));
+  return crumbs;
 }
 
 export async function getRecentCrumbs(limit = 20) {
-  const kv = getKv();
-  const crumbIds = await kv.zrange(keys.recentCrumbs, 0, limit - 1, { rev: true });
+  const kv = await getClient();
+  const crumbIds = await kv.zRange(keys.recentCrumbs, 0, limit - 1, { REV: true });
   if (!crumbIds || crumbIds.length === 0) return [];
 
-  const pipeline = kv.pipeline();
+  const crumbs = [];
   for (const id of crumbIds) {
-    pipeline.hgetall(keys.crumb(id));
+    const data = await kv.hGetAll(keys.crumb(id));
+    if (data && Object.keys(data).length > 0) {
+      crumbs.push({ id, ...data });
+    }
   }
-  const results = await pipeline.exec();
-  return results.filter(Boolean).map((c, i) => ({ id: crumbIds[i], ...c }));
+  return crumbs;
 }
 
 export async function createCrumb(crumbData) {
-  const kv = getKv();
+  const kv = await getClient();
   const id = crypto.randomUUID();
   const timestamp = crumbData.timestamp || new Date().toISOString();
   const score = new Date(timestamp).getTime();
@@ -110,32 +95,30 @@ export async function createCrumb(crumbData) {
     body: crumbData.body || '',
   };
 
-  const pipeline = kv.pipeline();
-  pipeline.hset(keys.crumb(id), crumb);
-  pipeline.zadd(keys.projectCrumbs(crumb.projectId), { score, member: id });
-  pipeline.zadd(keys.recentCrumbs, { score, member: id });
-  await pipeline.exec();
+  await kv.hSet(keys.crumb(id), crumb);
+  await kv.zAdd(keys.projectCrumbs(crumb.projectId), [{ score, value: id }]);
+  await kv.zAdd(keys.recentCrumbs, [{ score, value: id }]);
 
   // Trim recent crumbs
-  const count = await kv.zcard(keys.recentCrumbs);
+  const count = await kv.zCard(keys.recentCrumbs);
   if (count > RECENT_CRUMBS_MAX) {
-    await kv.zremrangebyrank(keys.recentCrumbs, 0, count - RECENT_CRUMBS_MAX - 1);
+    await kv.zRemRangeByRank(keys.recentCrumbs, 0, count - RECENT_CRUMBS_MAX - 1);
   }
 
   return { id, ...crumb };
 }
 
 export async function deleteProjectFull(projectId) {
-  const kv = getKv();
-  const crumbIds = await kv.zrange(keys.projectCrumbs(projectId), 0, -1);
+  const kv = await getClient();
+  const crumbIds = await kv.zRange(keys.projectCrumbs(projectId), 0, -1);
 
-  const pipeline = kv.pipeline();
-  pipeline.srem(keys.projectSet, projectId);
-  pipeline.del(keys.project(projectId));
-  pipeline.del(keys.projectCrumbs(projectId));
+  await kv.sRem(keys.projectSet, projectId);
+  await kv.del(keys.project(projectId));
+  await kv.del(keys.projectCrumbs(projectId));
   for (const cid of crumbIds || []) {
-    pipeline.del(keys.crumb(cid));
-    pipeline.zrem(keys.recentCrumbs, cid);
+    await kv.del(keys.crumb(cid));
+    await kv.zRem(keys.recentCrumbs, cid);
   }
-  await pipeline.exec();
 }
+
+export { getClient as getKv };

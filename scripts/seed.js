@@ -2,14 +2,13 @@
 // Usage: node scripts/seed.js
 // Requires .env.local with KV_REST_API_URL and KV_REST_API_TOKEN
 
-import { createClient } from '@vercel/kv';
+import { createClient } from 'redis';
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
-const kv = createClient({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
+const kv = createClient({ url: process.env.REDIS_URL });
+kv.on('error', (err) => console.error('Redis error:', err));
+await kv.connect();
 
 const keys = {
   projectSet: 'projects',
@@ -99,8 +98,8 @@ async function seed() {
     const { id, crumbs, ...projectData } = project;
 
     // Add project
-    await kv.sadd(keys.projectSet, id);
-    await kv.hset(keys.project(id), projectData);
+    await kv.sAdd(keys.projectSet, id);
+    await kv.hSet(keys.project(id), projectData);
     console.log(`  Project: ${projectData.name}`);
 
     // Add crumbs
@@ -108,26 +107,27 @@ async function seed() {
       const crumbId = crypto.randomUUID();
       const score = new Date(crumb.timestamp).getTime();
 
-      await kv.hset(keys.crumb(crumbId), {
+      await kv.hSet(keys.crumb(crumbId), {
         projectId: id,
         title: crumb.title,
         source: crumb.source,
         timestamp: crumb.timestamp,
         body: crumb.body,
       });
-      await kv.zadd(keys.projectCrumbs(id), { score, member: crumbId });
-      await kv.zadd(keys.recentCrumbs, { score, member: crumbId });
+      await kv.zAdd(keys.projectCrumbs(id), [{ score, value: crumbId }]);
+      await kv.zAdd(keys.recentCrumbs, [{ score, value: crumbId }]);
     }
     console.log(`    ${crumbs.length} crumbs`);
   }
 
   // Trim recent to 50
-  const count = await kv.zcard(keys.recentCrumbs);
+  const count = await kv.zCard(keys.recentCrumbs);
   if (count > 50) {
-    await kv.zremrangebyrank(keys.recentCrumbs, 0, count - 51);
+    await kv.zRemRangeByRank(keys.recentCrumbs, 0, count - 51);
   }
 
   console.log("Done!");
+  await kv.quit();
 }
 
 seed().catch(console.error);

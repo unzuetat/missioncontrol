@@ -10,10 +10,10 @@ export default async function handler(req, res) {
   }
 
   const { id } = req.query;
-  const kv = getKv();
+  const kv = await getKv();
 
   if (req.method === 'PUT') {
-    const exists = await kv.sismember(keys.projectSet, id);
+    const exists = await kv.sIsMember(keys.projectSet, id);
     if (!exists) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -26,10 +26,10 @@ export default async function handler(req, res) {
     if (color !== undefined) updates.color = color;
 
     if (Object.keys(updates).length > 0) {
-      await kv.hset(keys.project(id), updates);
+      await kv.hSet(keys.project(id), updates);
     }
 
-    const project = await kv.hgetall(keys.project(id));
+    const project = await kv.hGetAll(keys.project(id));
     return res.status(200).json({ project: { id, ...project } });
   }
 
