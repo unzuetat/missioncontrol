@@ -1,0 +1,37 @@
+import { getKv, keys, getProjectCrumbs, getRecentCrumbs, createCrumb } from './_lib/kv.js';
+import { checkAuth, setCors } from './_lib/auth.js';
+
+export default async function handler(req, res) {
+  setCors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (!checkAuth(req)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (req.method === 'GET') {
+    const { projectId } = req.query;
+    const crumbs = projectId
+      ? await getProjectCrumbs(projectId)
+      : await getRecentCrumbs(20);
+    return res.status(200).json({ crumbs });
+  }
+
+  if (req.method === 'POST') {
+    const { projectId, title, source, body, timestamp } = req.body || {};
+    if (!projectId || !title) {
+      return res.status(400).json({ error: 'projectId and title are required' });
+    }
+
+    const kv = getKv();
+    const exists = await kv.sismember(keys.projectSet, projectId);
+    if (!exists) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const crumb = await createCrumb({ projectId, title, source, body, timestamp });
+    return res.status(201).json({ crumb });
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' });
+}

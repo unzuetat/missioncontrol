@@ -1,0 +1,1053 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import { api } from "./src/api.js";
+import { createT } from "./src/i18n.js";
+
+const SOURCE_META = {
+  github: { label: "GitHub", icon: "⬡", color: "#8B949E" },
+  vercel: { label: "Vercel", icon: "▲", color: "#888888" },
+  "claude-code": { label: "Claude Code", icon: "⌘", color: "#D4A574" },
+  "claude-web": { label: "Claude Web", icon: "◉", color: "#7EB8DA" },
+};
+
+const STATUS_OPTIONS = ["desarrollo", "pausado", "idea"];
+const COLOR_PALETTE = ["#FF6B35", "#4ECDC4", "#A78BFA", "#F7DC6F", "#95A5A6", "#E67E22", "#3B82F6", "#EF4444", "#10B981", "#EC4899"];
+
+function timeAgo(dateStr, lang) {
+  const now = new Date();
+  const then = new Date(dateStr);
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const ago = lang === "en" ? "ago" : "hace";
+  const yesterday = lang === "en" ? "yesterday" : "ayer";
+  if (diffMins < 60) return lang === "en" ? `${diffMins}m ago` : `hace ${diffMins}m`;
+  if (diffHours < 24) return lang === "en" ? `${diffHours}h ago` : `hace ${diffHours}h`;
+  if (diffDays === 1) return yesterday;
+  return lang === "en" ? `${diffDays}d ago` : `hace ${diffDays}d`;
+}
+
+function formatDate(dateStr, lang) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(lang === "en" ? "en-US" : "es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+// --- COMPONENTS ---
+
+function SourceBadge({ source, compact = false }) {
+  const meta = SOURCE_META[source];
+  if (!meta) return null;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: compact ? 4 : 6,
+        padding: compact ? "2px 6px" : "3px 10px",
+        borderRadius: 4,
+        background: meta.color + "15",
+        border: `1px solid ${meta.color}30`,
+        fontSize: compact ? 10 : 11,
+        fontFamily: "'JetBrains Mono', monospace",
+        color: meta.color,
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ fontSize: compact ? 10 : 12 }}>{meta.icon}</span>
+      {meta.label}
+    </span>
+  );
+}
+
+function StatusDot({ status, color, t }) {
+  const isPaused = status === "pausado";
+  const isIdea = status === "idea";
+  const label = status === "desarrollo" ? t("development") : status === "pausado" ? t("paused") : t("idea");
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 10,
+        fontFamily: "'JetBrains Mono', monospace",
+        color: isPaused ? "#666" : isIdea ? "#888" : color,
+        textTransform: "uppercase",
+        letterSpacing: "0.1em",
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: isPaused ? "#555" : isIdea ? "#666" : color,
+          boxShadow: isPaused || isIdea ? "none" : `0 0 8px ${color}80`,
+          animation: !isPaused && !isIdea ? "pulse 2s ease-in-out infinite" : "none",
+        }}
+      />
+      {label}
+    </span>
+  );
+}
+
+function ProjectCard({ project, onClick, isSelected, t, lang }) {
+  const [hovered, setHovered] = useState(false);
+  const lc = project.lastCrumb;
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        padding: "18px 20px",
+        borderRadius: 10,
+        background: isSelected
+          ? `linear-gradient(135deg, ${project.color}12, ${project.color}08)`
+          : hovered
+          ? "var(--bg-card-hover)"
+          : "var(--bg-card)",
+        border: isSelected ? `1px solid ${project.color}50` : "1px solid var(--border-primary)",
+        transition: "all 0.25s ease",
+        position: "relative",
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0, left: 0, right: 0, height: 2,
+          background: `linear-gradient(90deg, ${project.color}, transparent)`,
+          opacity: isSelected ? 1 : hovered ? 0.6 : 0.2,
+          transition: "opacity 0.3s",
+        }}
+      />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 3, fontFamily: "'Space Grotesk', sans-serif" }}>
+            {project.name}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
+            {project.description}
+          </div>
+        </div>
+        <StatusDot status={project.status} color={project.color} t={t} />
+      </div>
+
+      {lc && (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: 6,
+            background: "var(--bg-inset)",
+            borderLeft: `2px solid ${project.color}60`,
+          }}
+        >
+          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 6, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            {t("whereYouLeft")}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4, marginBottom: 8 }}>
+            {lc.title}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <SourceBadge source={lc.source} compact />
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
+              {timeAgo(lc.timestamp, lang)}
+            </span>
+          </div>
+        </div>
+      )}
+    </button>
+  );
+}
+
+function Timeline({ crumbs, projectColor, lang }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
+      {crumbs.map((crumb, i) => (
+        <div
+          key={crumb.id || i}
+          style={{
+            display: "flex",
+            gap: 16,
+            padding: "14px 0",
+            position: "relative",
+            animation: `fadeSlideIn 0.3s ease ${i * 0.06}s both`,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0 }}>
+            <div
+              style={{
+                width: 9, height: 9, borderRadius: "50%",
+                background: i === 0 ? projectColor : "transparent",
+                border: i === 0 ? "none" : `1.5px solid ${(SOURCE_META[crumb.source]?.color || "#888")}60`,
+                boxShadow: i === 0 ? `0 0 10px ${projectColor}60` : "none",
+                flexShrink: 0, marginTop: 4,
+              }}
+            />
+            {i < crumbs.length - 1 && (
+              <div style={{ width: 1, flex: 1, background: "var(--border-primary)", marginTop: 4 }} />
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: i === 0 ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: i === 0 ? 600 : 400 }}>
+                {crumb.title}
+              </span>
+              <SourceBadge source={crumb.source} compact />
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.5, marginBottom: 4 }}>
+              {crumb.body}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+              {formatDate(crumb.timestamp, lang)}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
+  const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (defaultProjectId) setProjectId(defaultProjectId);
+  }, [defaultProjectId]);
+
+  const handleSubmit = async () => {
+    if (!title.trim() || saving) return;
+    setSaving(true);
+    await onSubmit({ projectId, title, body, source: "claude-web", timestamp: new Date().toISOString() });
+    setTitle("");
+    setBody("");
+    setSaving(false);
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 2000);
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 6,
+    border: "1px solid var(--border-primary)",
+    background: "var(--bg-input)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontFamily: "'JetBrains Mono', monospace",
+    outline: "none",
+    boxSizing: "border-box",
+    transition: "border-color 0.2s",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+        {t("quickCrumb")}
+      </div>
+      <select
+        value={projectId}
+        onChange={(e) => setProjectId(e.target.value)}
+        style={{
+          ...inputStyle,
+          cursor: "pointer",
+          appearance: "none",
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E")`,
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "right 12px center",
+          paddingRight: 32,
+        }}
+      >
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>{p.name}</option>
+        ))}
+      </select>
+      <input
+        type="text"
+        placeholder={t("titlePlaceholder")}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={80}
+        style={inputStyle}
+        onFocus={(e) => (e.target.style.borderColor = "var(--border-hover)")}
+        onBlur={(e) => (e.target.style.borderColor = "var(--border-primary)")}
+      />
+      <textarea
+        placeholder={t("bodyPlaceholder")}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={3}
+        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+        onFocus={(e) => (e.target.style.borderColor = "var(--border-hover)")}
+        onBlur={(e) => (e.target.style.borderColor = "var(--border-primary)")}
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!title.trim() || saving}
+        style={{
+          padding: "10px 20px",
+          borderRadius: 6,
+          border: "none",
+          background: submitted ? "#2D8A4E" : title.trim() ? "var(--bg-btn)" : "var(--bg-btn-disabled)",
+          color: submitted ? "#fff" : title.trim() ? "var(--text-secondary)" : "var(--text-tertiary)",
+          fontSize: 12,
+          fontFamily: "'JetBrains Mono', monospace",
+          textTransform: "uppercase",
+          letterSpacing: "0.1em",
+          cursor: title.trim() ? "pointer" : "default",
+          transition: "all 0.3s",
+        }}
+      >
+        {submitted ? t("crumbSaved") : saving ? "..." : t("saveCrumb")}
+      </button>
+    </div>
+  );
+}
+
+function GlobalTimeline({ crumbs, t, lang }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      {crumbs.map((crumb, i) => (
+        <div
+          key={crumb.id || i}
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: "10px 0",
+            borderBottom: i < crumbs.length - 1 ? "1px solid var(--border-subtle)" : "none",
+            animation: `fadeSlideIn 0.3s ease ${i * 0.04}s both`,
+          }}
+        >
+          <div
+            style={{
+              width: 3, borderRadius: 2,
+              background: crumb.projectColor || "var(--text-muted)",
+              flexShrink: 0, opacity: 0.6,
+            }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{crumb.title}</span>
+              <SourceBadge source={crumb.source} compact />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 10, color: crumb.projectColor || "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", opacity: 0.8 }}>
+                {crumb.projectName || ""}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                {timeAgo(crumb.timestamp, lang)}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProjectForm({ project, onSave, onCancel, t }) {
+  const [name, setName] = useState(project?.name || "");
+  const [description, setDescription] = useState(project?.description || "");
+  const [status, setStatus] = useState(project?.status || "idea");
+  const [color, setColor] = useState(project?.color || COLOR_PALETTE[0]);
+  const [saving, setSaving] = useState(false);
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 6,
+    border: "1px solid var(--border-primary)",
+    background: "var(--bg-input)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontFamily: "'JetBrains Mono', monospace",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const handleSave = async () => {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    await onSave({ name, description, status, color });
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeSlideIn 0.2s ease" }}>
+      <input type="text" placeholder={t("name")} value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+      <input type="text" placeholder={t("description")} value={description} onChange={(e) => setDescription(e.target.value)} style={inputStyle} />
+      <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+        {STATUS_OPTIONS.map((s) => (
+          <option key={s} value={s}>{s === "desarrollo" ? t("development") : s === "pausado" ? t("paused") : t("idea")}</option>
+        ))}
+      </select>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {COLOR_PALETTE.map((c) => (
+          <button
+            key={c}
+            onClick={() => setColor(c)}
+            style={{
+              all: "unset", cursor: "pointer",
+              width: 24, height: 24, borderRadius: 6,
+              background: c,
+              border: color === c ? "2px solid var(--text-primary)" : "2px solid transparent",
+              transition: "border-color 0.2s",
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={handleSave}
+          disabled={!name.trim() || saving}
+          style={{
+            flex: 1, padding: "10px", borderRadius: 6, border: "none",
+            background: name.trim() ? "var(--bg-btn)" : "var(--bg-btn-disabled)",
+            color: name.trim() ? "var(--text-secondary)" : "var(--text-tertiary)",
+            fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+            textTransform: "uppercase", letterSpacing: "0.1em",
+            cursor: name.trim() ? "pointer" : "default",
+          }}
+        >
+          {saving ? "..." : t("save")}
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: "10px 16px", borderRadius: 6, border: "1px solid var(--border-primary)",
+            background: "transparent", color: "var(--text-tertiary)",
+            fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+            textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer",
+          }}
+        >
+          {t("cancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ImportPanel({ projects, onImport, t }) {
+  const [projectId, setProjectId] = useState(projects[0]?.id || "");
+  const [raw, setRaw] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 6,
+    border: "1px solid var(--border-primary)",
+    background: "var(--bg-input)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontFamily: "'JetBrains Mono', monospace",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const handleParse = () => {
+    setError(null);
+    setResult(null);
+    try {
+      const parsed = JSON.parse(raw);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      if (arr.length === 0 || !arr[0].title) throw new Error("invalid");
+      setPreview(arr);
+    } catch {
+      setError(t("parseError"));
+      setPreview(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!preview || importing) return;
+    setImporting(true);
+    const res = await onImport({ projectId, crumbs: preview });
+    setImporting(false);
+    setResult(res.imported);
+    setPreview(null);
+    setRaw("");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeSlideIn 0.2s ease" }}>
+      <div style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+        {t("importCrumbs")}
+      </div>
+      <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>{p.name}</option>
+        ))}
+      </select>
+      <textarea
+        placeholder={t("importPlaceholder")}
+        value={raw}
+        onChange={(e) => { setRaw(e.target.value); setPreview(null); setError(null); setResult(null); }}
+        rows={6}
+        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+      />
+      {error && <div style={{ fontSize: 12, color: "#EF4444" }}>{error}</div>}
+      {result != null && <div style={{ fontSize: 12, color: "#2D8A4E" }}>{result} {t("importSuccess")}</div>}
+
+      {!preview && raw.trim() && (
+        <button onClick={handleParse} style={{
+          padding: "10px 20px", borderRadius: 6, border: "none",
+          background: "var(--bg-btn)", color: "var(--text-secondary)",
+          fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+          textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer",
+        }}>
+          {t("importPreview")}
+        </button>
+      )}
+
+      {preview && (
+        <div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>
+            {preview.length} crumbs:
+          </div>
+          {preview.map((c, i) => (
+            <div key={i} style={{ fontSize: 12, color: "var(--text-secondary)", padding: "6px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+              {c.title}
+            </div>
+          ))}
+          <button onClick={handleImport} disabled={importing} style={{
+            marginTop: 10, padding: "10px 20px", borderRadius: 6, border: "none",
+            background: "#2D8A4E", color: "#fff",
+            fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+            textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer",
+          }}>
+            {importing ? "..." : `${t("importConfirm")} ${preview.length}`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- MAIN APP ---
+export default function MissionControl() {
+  const [projects, setProjects] = useState([]);
+  const [recentCrumbs, setRecentCrumbs] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [projectCrumbs, setProjectCrumbs] = useState([]);
+  const [view, setView] = useState("grid");
+  const [isDark, setIsDark] = useState(false);
+  const [lang, setLang] = useState(() => localStorage.getItem("mc-lang") || "es");
+  const [loading, setLoading] = useState(true);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [editingProject, setEditingProject] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const detailRef = useRef(null);
+
+  const t = createT(lang);
+
+  const loadProjects = useCallback(async () => {
+    try {
+      const data = await api.getProjects();
+      setProjects(data.projects || []);
+    } catch (e) {
+      console.error("Failed to load projects:", e);
+    }
+  }, []);
+
+  const loadRecentCrumbs = useCallback(async () => {
+    try {
+      const data = await api.getCrumbs();
+      setRecentCrumbs(data.crumbs || []);
+    } catch (e) {
+      console.error("Failed to load recent crumbs:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.all([loadProjects(), loadRecentCrumbs()]).finally(() => setLoading(false));
+  }, [loadProjects, loadRecentCrumbs]);
+
+  useEffect(() => {
+    localStorage.setItem("mc-lang", lang);
+  }, [lang]);
+
+  const handleSelectProject = async (project) => {
+    setSelectedProject(project);
+    setView("detail");
+    setEditingProject(false);
+    try {
+      const data = await api.getCrumbs(project.id);
+      setProjectCrumbs(data.crumbs || []);
+    } catch (e) {
+      console.error("Failed to load crumbs:", e);
+    }
+  };
+
+  const handleBack = () => {
+    setView("grid");
+    setSelectedProject(null);
+    setProjectCrumbs([]);
+    setEditingProject(false);
+  };
+
+  const handleCreateCrumb = async (data) => {
+    await api.createCrumb(data);
+    await loadProjects();
+    await loadRecentCrumbs();
+    if (selectedProject && data.projectId === selectedProject.id) {
+      const fresh = await api.getCrumbs(selectedProject.id);
+      setProjectCrumbs(fresh.crumbs || []);
+    }
+  };
+
+  const handleCreateProject = async (data) => {
+    await api.createProject(data);
+    await loadProjects();
+    setShowNewProject(false);
+  };
+
+  const handleUpdateProject = async (data) => {
+    await api.updateProject(selectedProject.id, data);
+    await loadProjects();
+    const updated = { ...selectedProject, ...data };
+    setSelectedProject(updated);
+    setEditingProject(false);
+  };
+
+  const handleDeleteProject = async () => {
+    if (!confirm(t("deleteConfirm"))) return;
+    await api.deleteProject(selectedProject.id);
+    await loadProjects();
+    handleBack();
+  };
+
+  const handleImport = async (data) => {
+    const res = await api.importCrumbs(data);
+    await loadProjects();
+    await loadRecentCrumbs();
+    if (selectedProject && data.projectId === selectedProject.id) {
+      const fresh = await api.getCrumbs(selectedProject.id);
+      setProjectCrumbs(fresh.crumbs || []);
+    }
+    return res;
+  };
+
+  // Enrich recent crumbs with project info
+  const enrichedRecent = recentCrumbs.map((c) => {
+    const p = projects.find((pr) => pr.id === c.projectId);
+    return { ...c, projectName: p?.name || "", projectColor: p?.color || "#888" };
+  });
+
+  return (
+    <div
+      data-theme={isDark ? "dark" : "light"}
+      style={{
+        minHeight: "100vh",
+        background: "var(--bg-primary)",
+        color: "var(--text-primary)",
+        fontFamily: "'Space Grotesk', 'Segoe UI', sans-serif",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          position: "fixed", inset: 0,
+          backgroundImage: `linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+          pointerEvents: "none", zIndex: 0,
+        }}
+      />
+      <div
+        style={{
+          position: "fixed", top: "-20%", left: "30%", width: "60%", height: "60%",
+          background: "radial-gradient(ellipse, var(--glow-color), transparent 70%)",
+          pointerEvents: "none", zIndex: 0,
+        }}
+      />
+
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
+        {/* Header */}
+        <header style={{ marginBottom: 40 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+            {view === "detail" && (
+              <button
+                onClick={handleBack}
+                style={{
+                  all: "unset", cursor: "pointer", fontSize: 13,
+                  color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace",
+                  padding: "4px 10px", borderRadius: 4,
+                  border: "1px solid var(--border-primary)", transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => { e.target.style.color = "var(--text-secondary)"; e.target.style.borderColor = "var(--border-hover)"; }}
+                onMouseLeave={(e) => { e.target.style.color = "var(--text-tertiary)"; e.target.style.borderColor = "var(--border-primary)"; }}
+              >
+                {t("backToProjects")}
+              </button>
+            )}
+            <h1
+              style={{
+                fontSize: view === "detail" ? 18 : 24,
+                fontWeight: 700, margin: 0, letterSpacing: "-0.02em",
+                color: "var(--text-primary)", transition: "font-size 0.3s",
+              }}
+            >
+              {view === "detail" ? selectedProject?.name : "Mission Control"}
+            </h1>
+            {view === "detail" && selectedProject && (
+              <StatusDot status={selectedProject.status} color={selectedProject.color} t={t} />
+            )}
+
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <button
+                onClick={() => { const next = lang === "es" ? "en" : "es"; setLang(next); }}
+                style={{
+                  all: "unset", cursor: "pointer", fontSize: 11,
+                  padding: "4px 8px", borderRadius: 6,
+                  border: "1px solid var(--border-primary)", background: "var(--bg-card)",
+                  color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace",
+                  textTransform: "uppercase", letterSpacing: "0.05em",
+                }}
+              >
+                {lang === "es" ? "EN" : "ES"}
+              </button>
+              <button
+                onClick={() => setIsDark(!isDark)}
+                style={{
+                  all: "unset", cursor: "pointer", fontSize: 16,
+                  width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: 6, border: "1px solid var(--border-primary)",
+                  background: "var(--bg-card)", transition: "all 0.2s",
+                }}
+                title={isDark ? "Light mode" : "Dark mode"}
+              >
+                {isDark ? "☀️" : "🌙"}
+              </button>
+            </div>
+          </div>
+          <p
+            style={{
+              margin: 0, fontSize: 12,
+              color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {view === "detail"
+              ? selectedProject?.description
+              : `${projects.length} ${t("projects").toLowerCase()} · 4 ${t("subtitle")}`}
+          </p>
+        </header>
+
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+            {t("loading")}
+          </div>
+        )}
+
+        {/* GRID VIEW */}
+        {!loading && view === "grid" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 32, alignItems: "start" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace",
+                  textTransform: "uppercase", letterSpacing: "0.15em",
+                }}>
+                  {t("projects")}
+                </div>
+                <button
+                  onClick={() => setShowNewProject(!showNewProject)}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 16, lineHeight: 1,
+                    width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center",
+                    borderRadius: 6, border: "1px solid var(--border-primary)",
+                    color: "var(--text-tertiary)", transition: "all 0.2s",
+                  }}
+                  title={t("newProject")}
+                >
+                  +
+                </button>
+              </div>
+
+              {showNewProject && (
+                <div style={{
+                  padding: "18px 20px", borderRadius: 10, marginBottom: 12,
+                  background: "var(--bg-card)", border: "1px solid var(--border-primary)",
+                }}>
+                  <ProjectForm t={t} onSave={handleCreateProject} onCancel={() => setShowNewProject(false)} />
+                </div>
+              )}
+
+              {projects.length === 0 && !showNewProject && (
+                <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {t("noProjects")}
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
+                {projects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onClick={() => handleSelectProject(project)}
+                    isSelected={selectedProject?.id === project.id}
+                    t={t}
+                    lang={lang}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Right sidebar */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+              <div style={{ padding: "18px 20px", borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border-primary)" }}>
+                <CrumbForm projects={projects} onSubmit={handleCreateCrumb} t={t} />
+              </div>
+
+              <div style={{ padding: "18px 20px", borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border-primary)" }}>
+                <ImportPanel projects={projects} onImport={handleImport} t={t} />
+              </div>
+
+              <div style={{ padding: "18px 20px", borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border-primary)" }}>
+                <div style={{
+                  fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace",
+                  textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 14,
+                }}>
+                  {t("recentActivity")}
+                </div>
+                <GlobalTimeline crumbs={enrichedRecent} t={t} lang={lang} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DETAIL VIEW */}
+        {!loading && view === "detail" && selectedProject && (
+          <div
+            ref={detailRef}
+            style={{
+              display: "grid", gridTemplateColumns: "1fr 340px", gap: 32,
+              alignItems: "start", animation: "fadeSlideIn 0.3s ease",
+            }}
+          >
+            <div>
+              {/* Edit/Delete buttons */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button
+                  onClick={() => setEditingProject(!editingProject)}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 11,
+                    padding: "4px 10px", borderRadius: 4,
+                    border: "1px solid var(--border-primary)",
+                    color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace",
+                    textTransform: "uppercase", letterSpacing: "0.05em",
+                  }}
+                >
+                  {t("editProject")}
+                </button>
+                <button
+                  onClick={handleDeleteProject}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 11,
+                    padding: "4px 10px", borderRadius: 4,
+                    border: "1px solid rgba(239,68,68,0.3)",
+                    color: "#EF4444", fontFamily: "'JetBrains Mono', monospace",
+                    textTransform: "uppercase", letterSpacing: "0.05em",
+                  }}
+                >
+                  {t("deleteProject")}
+                </button>
+              </div>
+
+              {editingProject && (
+                <div style={{
+                  padding: "18px 20px", borderRadius: 10, marginBottom: 20,
+                  background: "var(--bg-card)", border: "1px solid var(--border-primary)",
+                }}>
+                  <ProjectForm project={selectedProject} t={t} onSave={handleUpdateProject} onCancel={() => setEditingProject(false)} />
+                </div>
+              )}
+
+              {/* "Donde lo dejaste" hero */}
+              {selectedProject.lastCrumb && (
+                <div
+                  style={{
+                    padding: "20px 24px", borderRadius: 10,
+                    background: `linear-gradient(135deg, ${selectedProject.color}10, var(--bg-inset))`,
+                    border: `1px solid ${selectedProject.color}30`,
+                    marginBottom: 28,
+                  }}
+                >
+                  <div style={{
+                    fontSize: 10, color: selectedProject.color, fontFamily: "'JetBrains Mono', monospace",
+                    textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 10, opacity: 0.8,
+                  }}>
+                    ◉ {t("whereYouLeft")}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>
+                    {selectedProject.lastCrumb.title}
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 12 }}>
+                    {selectedProject.lastCrumb.body}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <SourceBadge source={selectedProject.lastCrumb.source} />
+                    <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
+                      {formatDate(selectedProject.lastCrumb.timestamp, lang)} · {timeAgo(selectedProject.lastCrumb.timestamp, lang)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div style={{
+                fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace",
+                textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16,
+              }}>
+                {t("fullTimeline")} · {projectCrumbs.length} {t("crumbsInTimeline")}
+              </div>
+              <Timeline crumbs={projectCrumbs} projectColor={selectedProject.color} lang={lang} />
+            </div>
+
+            {/* Right: Crumb form + stats */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <div style={{ padding: "18px 20px", borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border-primary)" }}>
+                <CrumbForm
+                  projects={projects}
+                  onSubmit={handleCreateCrumb}
+                  t={t}
+                  defaultProjectId={selectedProject.id}
+                />
+              </div>
+
+              <div style={{ padding: "18px 20px", borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border-primary)" }}>
+                <div style={{
+                  fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace",
+                  textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 14,
+                }}>
+                  {t("sources")}
+                </div>
+                {Object.entries(SOURCE_META).map(([key, meta]) => {
+                  const count = projectCrumbs.filter((c) => c.source === key).length;
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                        padding: "8px 0", borderBottom: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      <SourceBadge source={key} compact />
+                      <span
+                        style={{
+                          fontSize: 14, fontFamily: "'JetBrains Mono', monospace",
+                          color: count > 0 ? "var(--text-secondary)" : "var(--text-muted)",
+                          fontWeight: count > 0 ? 600 : 400,
+                        }}
+                      >
+                        {count}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+        [data-theme="light"] {
+          --bg-primary: #F5F5F7;
+          --bg-card: rgba(255,255,255,0.8);
+          --bg-card-hover: rgba(255,255,255,0.95);
+          --bg-inset: rgba(0,0,0,0.03);
+          --bg-input: rgba(0,0,0,0.04);
+          --bg-btn: rgba(0,0,0,0.08);
+          --bg-btn-disabled: rgba(0,0,0,0.03);
+          --text-primary: #1A1A1C;
+          --text-secondary: #555;
+          --text-tertiary: #777;
+          --text-muted: #999;
+          --border-primary: rgba(0,0,0,0.10);
+          --border-hover: rgba(0,0,0,0.25);
+          --border-subtle: rgba(0,0,0,0.06);
+          --grid-line: rgba(0,0,0,0.04);
+          --glow-color: rgba(120,184,218,0.06);
+          --scrollbar-thumb: rgba(0,0,0,0.12);
+          --select-bg: #fff;
+          --select-color: #333;
+          --placeholder-color: #aaa;
+        }
+
+        [data-theme="dark"] {
+          --bg-primary: #0A0A0C;
+          --bg-card: rgba(255,255,255,0.02);
+          --bg-card-hover: rgba(255,255,255,0.04);
+          --bg-inset: rgba(0,0,0,0.25);
+          --bg-input: rgba(0,0,0,0.3);
+          --bg-btn: rgba(255,255,255,0.1);
+          --bg-btn-disabled: rgba(255,255,255,0.04);
+          --text-primary: #E8E8E8;
+          --text-secondary: #999;
+          --text-tertiary: #555;
+          --text-muted: #444;
+          --border-primary: rgba(255,255,255,0.06);
+          --border-hover: rgba(255,255,255,0.2);
+          --border-subtle: rgba(255,255,255,0.04);
+          --grid-line: rgba(255,255,255,0.015);
+          --glow-color: rgba(120,184,218,0.04);
+          --scrollbar-thumb: rgba(255,255,255,0.1);
+          --select-bg: #1a1a1e;
+          --select-color: #ccc;
+          --placeholder-color: #444;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        * { box-sizing: border-box; }
+
+        select option {
+          background: var(--select-bg);
+          color: var(--select-color);
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+          color: var(--placeholder-color);
+        }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+        @media (max-width: 900px) {
+          header h1 { font-size: 18px !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
