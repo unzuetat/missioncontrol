@@ -1,17 +1,16 @@
 export function checkAuth(req) {
+  // GET requests are always public (read-only)
+  if (req.method === 'GET') return true;
+
   // Browser requests from same origin don't need API key
   const origin = req.headers['origin'] || '';
   const referer = req.headers['referer'] || '';
   const appUrl = process.env.VERCEL_URL || '';
+  const prodUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || '';
 
-  if (appUrl && (origin.includes(appUrl) || referer.includes(appUrl))) {
-    return true;
-  }
-
-  // Local dev: skip auth for same-origin
-  if (origin.includes('localhost') || referer.includes('localhost')) {
-    return true;
-  }
+  if (appUrl && (origin.includes(appUrl) || referer.includes(appUrl))) return true;
+  if (prodUrl && (origin.includes(prodUrl) || referer.includes(prodUrl))) return true;
+  if (origin.includes('localhost') || referer.includes('localhost')) return true;
 
   // External requests require API key
   const key = req.headers['x-api-key'];
