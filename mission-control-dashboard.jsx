@@ -681,9 +681,12 @@ export default function MissionControl() {
   const API_KEY = "a31e233f73cd69d68ff77e7b55769accf6ed5eb3f362c5e76a24f3d86ce189f3";
   const API_BASE = "https://missioncontrol-coral.vercel.app";
 
-  const buildExportPrompt = (projectId) => {
-    const ids = projects.map(p => p.id).join(", ");
+  const buildExportPrompt = () => {
+    const ids = projects.map(p => `${p.id} (${p.name})`).join("\n");
     return `Antes de terminar, necesito que exportes el progreso de esta sesión a Mission Control.
+
+Identifica el projectId correcto de la lista de abajo según el proyecto en el que hemos trabajado. Si no existe, créalo primero con POST /api/projects.
+
 Haz DOS cosas:
 
 1. CRUMBS — genera JSON con las actividades de la sesión:
@@ -706,7 +709,7 @@ Envíalo con:
 curl -X POST ${API_BASE}/api/import \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
-  -d '{"projectId": "${projectId}", "crumbs": [...]}'
+  -d '{"projectId": "PROJECT_ID", "crumbs": [...]}'
 
 2. CONTEXT.md — genera una foto completa del estado del proyecto:
 - Qué es (1-2 frases)
@@ -718,7 +721,7 @@ curl -X POST ${API_BASE}/api/import \\
 - URLs (deploy, repo, recursos)
 
 Primero comprueba si ya existe:
-curl -s ${API_BASE}/api/files?projectId=${projectId}
+curl -s ${API_BASE}/api/files?projectId=PROJECT_ID
 
 Si existe, actualízalo (PUT con fileId):
 curl -X PUT ${API_BASE}/api/files \\
@@ -730,13 +733,20 @@ Si no existe, créalo:
 curl -X POST ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
-  -d '{"projectId": "${projectId}", "name": "CONTEXT.md", "content": "..."}'
+  -d '{"projectId": "PROJECT_ID", "name": "CONTEXT.md", "content": "..."}'
 
-Project IDs disponibles: ${ids}`;
+Si el proyecto no existe aún en Mission Control, créalo primero:
+curl -X POST ${API_BASE}/api/projects \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${API_KEY}" \\
+  -d '{"name": "Nombre", "description": "Descripción", "status": "desarrollo", "color": "#3B82F6"}'
+
+Project IDs disponibles:
+${ids}`;
   };
 
-  const handleCopyPrompt = (projectId) => {
-    navigator.clipboard.writeText(buildExportPrompt(projectId));
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(buildExportPrompt());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -926,7 +936,7 @@ Project IDs disponibles: ${ids}`;
 
             <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
               <button
-                onClick={() => handleCopyPrompt(selectedProject?.id || projects[0]?.id || "proyecto")}
+                onClick={() => handleCopyPrompt()}
                 style={{
                   all: "unset", cursor: "pointer", fontSize: 11,
                   padding: "4px 8px", borderRadius: 6,
