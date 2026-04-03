@@ -675,7 +675,71 @@ export default function MissionControl() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingProject, setEditingProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [copied, setCopied] = useState(false);
   const detailRef = useRef(null);
+
+  const API_KEY = "a31e233f73cd69d68ff77e7b55769accf6ed5eb3f362c5e76a24f3d86ce189f3";
+  const API_BASE = "https://missioncontrol-coral.vercel.app";
+
+  const buildExportPrompt = (projectId) => {
+    const ids = projects.map(p => p.id).join(", ");
+    return `Antes de terminar, necesito que exportes el progreso de esta sesión a Mission Control.
+Haz DOS cosas:
+
+1. CRUMBS — genera JSON con las actividades de la sesión:
+[
+  {
+    "title": "Descripción corta (max 10 palabras)",
+    "body": "Qué se hizo, decisiones tomadas, qué queda pendiente.",
+    "source": "claude-code",
+    "timestamp": "YYYY-MM-DDTHH:MM:SS"
+  }
+]
+
+Reglas:
+- source: "claude-code" si estamos en Claude Code, "claude-web" si en Claude Web
+- timestamp: fecha/hora real de cuando se hizo
+- Un objeto por bloque de trabajo significativo, no uno por commit
+- El body debe dar contexto suficiente para retomar
+
+Envíalo con:
+curl -X POST ${API_BASE}/api/import \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${API_KEY}" \\
+  -d '{"projectId": "${projectId}", "crumbs": [...]}'
+
+2. CONTEXT.md — genera una foto completa del estado del proyecto:
+- Qué es (1-2 frases)
+- Tech stack
+- Arquitectura (estructura de archivos clave)
+- Estado actual (qué funciona, qué está a medias)
+- Decisiones importantes
+- Pendiente (próximos pasos concretos)
+- URLs (deploy, repo, recursos)
+
+Primero comprueba si ya existe:
+curl -s ${API_BASE}/api/files?projectId=${projectId}
+
+Si existe, actualízalo (PUT con fileId):
+curl -X PUT ${API_BASE}/api/files \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${API_KEY}" \\
+  -d '{"fileId": "FILE_ID_AQUI", "content": "..."}'
+
+Si no existe, créalo:
+curl -X POST ${API_BASE}/api/files \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${API_KEY}" \\
+  -d '{"projectId": "${projectId}", "name": "CONTEXT.md", "content": "..."}'
+
+Project IDs disponibles: ${ids}`;
+  };
+
+  const handleCopyPrompt = (projectId) => {
+    navigator.clipboard.writeText(buildExportPrompt(projectId));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const t = createT(lang);
 
@@ -860,7 +924,23 @@ export default function MissionControl() {
               <StatusDot status={selectedProject.status} color={selectedProject.color} t={t} />
             )}
 
-            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                onClick={() => handleCopyPrompt(selectedProject?.id || projects[0]?.id || "proyecto")}
+                style={{
+                  all: "unset", cursor: "pointer", fontSize: 11,
+                  padding: "4px 8px", borderRadius: 6,
+                  border: `1px solid ${copied ? "#2D8A4E" : "var(--border-primary)"}`,
+                  background: copied ? "#2D8A4E" : "var(--bg-card)",
+                  color: copied ? "#fff" : "var(--text-tertiary)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: "0.05em", transition: "all 0.3s",
+                  whiteSpace: "nowrap",
+                }}
+                title={lang === "es" ? "Copiar prompt de exportación" : "Copy export prompt"}
+              >
+                {copied ? "✓" : (lang === "es" ? "EXPORT PROMPT" : "EXPORT PROMPT")}
+              </button>
               <button
                 onClick={() => { const next = lang === "es" ? "en" : "es"; setLang(next); }}
                 style={{
