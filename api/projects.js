@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { name, description, status, color } = req.body || {};
+    const { name, description, status, color, repoUrl, vercelUrl, environment, techStack } = req.body || {};
     if (!name) {
       return res.status(400).json({ error: 'name is required' });
     }
@@ -31,6 +31,10 @@ export default async function handler(req, res) {
       description: description || '',
       status: status || 'idea',
       color: color || '#888888',
+      repoUrl: repoUrl || '',
+      vercelUrl: vercelUrl || '',
+      environment: environment || '',
+      techStack: techStack || '',
     };
 
     await kv.sAdd(keys.projectSet, id);

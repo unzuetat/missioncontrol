@@ -34,11 +34,15 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { crumbId, isDone } = req.body || {};
+    const { crumbId, isDone, title, body } = req.body || {};
     if (!crumbId) {
       return res.status(400).json({ error: 'crumbId is required' });
     }
-    const crumb = await updateCrumb(crumbId, { isDone: isDone ? 'true' : '' });
+    const fields = {};
+    if (isDone !== undefined) fields.isDone = isDone ? 'true' : '';
+    if (title !== undefined) fields.title = title;
+    if (body !== undefined) fields.body = body;
+    const crumb = await updateCrumb(crumbId, fields);
     return res.status(200).json({ crumb });
   }
 

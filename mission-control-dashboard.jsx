@@ -11,6 +11,25 @@ const SOURCE_META = {
 
 const STATUS_OPTIONS = ["desarrollo", "pausado", "idea"];
 const COLOR_PALETTE = ["#FF6B35", "#4ECDC4", "#A78BFA", "#F7DC6F", "#95A5A6", "#E67E22", "#3B82F6", "#EF4444", "#10B981", "#EC4899"];
+const ENV_OPTIONS = ["", "local", "test", "branch", "staging", "production"];
+const TECH_ICONS = {
+  vercel: { icon: "▲", label: "Vercel", color: "#000" },
+  firebase: { icon: "🔥", label: "Firebase", color: "#FFCA28" },
+  supabase: { icon: "⚡", label: "Supabase", color: "#3ECF8E" },
+  redis: { icon: "◆", label: "Redis", color: "#DC382D" },
+  nextjs: { icon: "N", label: "Next.js", color: "#888" },
+  react: { icon: "⚛", label: "React", color: "#61DAFB" },
+  node: { icon: "⬢", label: "Node", color: "#68A063" },
+  tailwind: { icon: "🌊", label: "Tailwind", color: "#38BDF8" },
+  vite: { icon: "⚡", label: "Vite", color: "#646CFF" },
+};
+const ENV_COLORS = {
+  local: "#95A5A6",
+  test: "#F59E0B",
+  branch: "#A78BFA",
+  staging: "#3B82F6",
+  production: "#10B981",
+};
 
 function timeAgo(dateStr, lang) {
   const now = new Date();
@@ -93,6 +112,78 @@ function StatusDot({ status, color, t }) {
   );
 }
 
+function EnvBadge({ environment, t }) {
+  if (!environment) return null;
+  const color = ENV_COLORS[environment] || "#888";
+  const label = t(`env${environment.charAt(0).toUpperCase() + environment.slice(1)}`);
+  return (
+    <span
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 7px", borderRadius: 4,
+        background: color + "18", border: `1px solid ${color}35`,
+        fontSize: 9, fontFamily: "'JetBrains Mono', monospace",
+        color, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600,
+      }}
+    >
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, boxShadow: `0 0 6px ${color}60` }} />
+      {label}
+    </span>
+  );
+}
+
+function ProjectLinks({ project }) {
+  const links = [];
+  if (project.repoUrl) {
+    links.push(
+      <a key="gh" href={project.repoUrl} target="_blank" rel="noopener noreferrer"
+        style={{ fontSize: 16, textDecoration: "none", opacity: 0.7, transition: "opacity 0.2s" }}
+        onMouseEnter={(e) => e.target.style.opacity = 1}
+        onMouseLeave={(e) => e.target.style.opacity = 0.7}
+        title="GitHub"
+      >⬡</a>
+    );
+  }
+  if (project.vercelUrl) {
+    links.push(
+      <a key="vc" href={project.vercelUrl} target="_blank" rel="noopener noreferrer"
+        style={{ fontSize: 14, textDecoration: "none", opacity: 0.7, transition: "opacity 0.2s", color: "var(--text-secondary)" }}
+        onMouseEnter={(e) => e.target.style.opacity = 1}
+        onMouseLeave={(e) => e.target.style.opacity = 0.7}
+        title="Vercel"
+      >▲</a>
+    );
+  }
+  if (links.length === 0) return null;
+  return <div style={{ display: "flex", gap: 8, alignItems: "center" }}>{links}</div>;
+}
+
+function TechStackBadges({ techStack }) {
+  if (!techStack) return null;
+  const techs = techStack.split(",").map((s) => s.trim()).filter(Boolean);
+  if (techs.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      {techs.map((tech) => {
+        const meta = TECH_ICONS[tech];
+        return (
+          <span key={tech} style={{
+            display: "inline-flex", alignItems: "center", gap: 3,
+            padding: "1px 5px", borderRadius: 3,
+            background: (meta?.color || "#888") + "12",
+            border: `1px solid ${(meta?.color || "#888")}25`,
+            fontSize: 9, fontFamily: "'JetBrains Mono', monospace",
+            color: meta?.color || "var(--text-muted)",
+          }}>
+            <span style={{ fontSize: 9 }}>{meta?.icon || "·"}</span>
+            {meta?.label || tech}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProjectCard({ project, onClick, isSelected, t, lang }) {
   const [hovered, setHovered] = useState(false);
   const lc = project.lastCrumb;
@@ -133,15 +224,22 @@ function ProjectCard({ project, onClick, isSelected, t, lang }) {
       />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 3, fontFamily: "'Space Grotesk', sans-serif" }}>
-            {project.name}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'Space Grotesk', sans-serif" }}>
+              {project.name}
+            </span>
+            <ProjectLinks project={project} />
           </div>
           <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
             {project.description}
           </div>
         </div>
-        <StatusDot status={project.status} color={project.color} t={t} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <StatusDot status={project.status} color={project.color} t={t} />
+          <EnvBadge environment={project.environment} t={t} />
+        </div>
       </div>
+      <TechStackBadges techStack={project.techStack} />
 
       {lc && (
         <div
@@ -170,12 +268,42 @@ function ProjectCard({ project, onClick, isSelected, t, lang }) {
   );
 }
 
-function Timeline({ crumbs, projectColor, lang, onToggleDone, t }) {
+function Timeline({ crumbs, projectColor, lang, onToggleDone, onEditCrumb, t }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (crumb) => {
+    setEditingId(crumb.id);
+    setEditTitle(crumb.title);
+    setEditBody(crumb.body || "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim() || saving) return;
+    setSaving(true);
+    await onEditCrumb(editingId, { title: editTitle, body: editBody });
+    setEditingId(null);
+    setSaving(false);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "6px 10px", borderRadius: 4,
+    border: "1px solid var(--border-primary)", background: "var(--bg-input)",
+    color: "var(--text-secondary)", fontSize: 12,
+    fontFamily: "'JetBrains Mono', monospace", outline: "none", boxSizing: "border-box",
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
       {crumbs.map((crumb, i) => {
         const isIdea = crumb.isIdea === "true";
+        const isTest = crumb.isTest === "true";
         const isDone = crumb.isDone === "true";
+        const isSpecial = isIdea || isTest;
+        const accentColor = isIdea ? "#F59E0B" : isTest ? "#8B5CF6" : null;
+        const isEditing = editingId === crumb.id;
         return (
           <div
             key={crumb.id || i}
@@ -185,17 +313,16 @@ function Timeline({ crumbs, projectColor, lang, onToggleDone, t }) {
               padding: "14px 0",
               position: "relative",
               animation: `fadeSlideIn 0.3s ease ${i * 0.06}s both`,
-              opacity: isDone ? 0.5 : 1,
-              transition: "opacity 0.3s",
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0 }}>
               <div
                 style={{
-                  width: 9, height: 9, borderRadius: isIdea ? 2 : "50%",
-                  background: isIdea ? "#F59E0B" : (i === 0 ? projectColor : "transparent"),
-                  border: isIdea ? "none" : (i === 0 ? "none" : `1.5px solid ${(SOURCE_META[crumb.source]?.color || "#888")}60`),
-                  boxShadow: isIdea ? "0 0 10px #F59E0B60" : (i === 0 ? `0 0 10px ${projectColor}60` : "none"),
+                  width: 9, height: 9,
+                  borderRadius: isIdea ? 2 : isTest ? 1 : "50%",
+                  background: accentColor || (i === 0 ? projectColor : "transparent"),
+                  border: isSpecial ? "none" : (i === 0 ? "none" : `1.5px solid ${(SOURCE_META[crumb.source]?.color || "#888")}60`),
+                  boxShadow: isSpecial ? `0 0 10px ${accentColor}60` : (i === 0 ? `0 0 10px ${projectColor}60` : "none"),
                   flexShrink: 0, marginTop: 4,
                 }}
               />
@@ -204,55 +331,105 @@ function Timeline({ crumbs, projectColor, lang, onToggleDone, t }) {
               )}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
-                {isIdea && (
-                  <span style={{
-                    fontSize: 9, padding: "1px 6px", borderRadius: 3,
-                    background: isDone ? "var(--bg-btn-disabled)" : "#F59E0B20",
-                    color: isDone ? "var(--text-muted)" : "#F59E0B",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontWeight: 600, letterSpacing: "0.1em",
-                    border: isDone ? "none" : "1px solid #F59E0B40",
+              {isEditing ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 4 }}>
+                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={inputStyle} />
+                  <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={handleSaveEdit} disabled={saving} style={{
+                      all: "unset", cursor: "pointer", fontSize: 10, padding: "3px 10px", borderRadius: 3,
+                      background: accentColor || "var(--bg-btn)", color: isIdea ? "#000" : "#fff",
+                      fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase",
+                    }}>{saving ? "..." : t("saveEdit")}</button>
+                    <button onClick={() => setEditingId(null)} style={{
+                      all: "unset", cursor: "pointer", fontSize: 10, padding: "3px 10px", borderRadius: 3,
+                      border: "1px solid var(--border-primary)", color: "var(--text-muted)",
+                      fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase",
+                    }}>{t("cancelEdit")}</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                    {isIdea && (
+                      <span style={{
+                        fontSize: 9, padding: "1px 6px", borderRadius: 3,
+                        background: "#F59E0B20", color: "#F59E0B",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 600, letterSpacing: "0.1em",
+                        border: "1px solid #F59E0B40",
+                      }}>
+                        💡 {t("ideaLabel")}
+                      </span>
+                    )}
+                    {isTest && (
+                      <span style={{
+                        fontSize: 9, padding: "1px 6px", borderRadius: 3,
+                        background: "#8B5CF620", color: "#8B5CF6",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 600, letterSpacing: "0.1em",
+                        border: "1px solid #8B5CF640",
+                      }}>
+                        🧪 {t("testLabel")}
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: 13,
+                      color: isDone ? accentColor + "90" : (accentColor || (i === 0 ? "var(--text-primary)" : "var(--text-secondary)")),
+                      fontWeight: isSpecial ? 600 : (i === 0 ? 600 : 400),
+                      textDecoration: isDone ? "line-through" : "none",
+                      borderBottom: isSpecial && !isDone ? `1px dashed ${accentColor}40` : "none",
+                      paddingBottom: isSpecial && !isDone ? 1 : 0,
+                    }}>
+                      {crumb.title}
+                    </span>
+                    <SourceBadge source={crumb.source} compact />
+                    {isSpecial && onToggleDone && (
+                      <button
+                        onClick={() => onToggleDone(crumb.id, !isDone)}
+                        title={isDone ? t("markUndone") : t("markDone")}
+                        style={{
+                          all: "unset", cursor: "pointer", fontSize: 10,
+                          padding: "2px 6px", borderRadius: 3,
+                          border: "1px solid var(--border-primary)",
+                          color: isDone ? "#2D8A4E" : "var(--text-muted)",
+                          fontFamily: "'JetBrains Mono', monospace",
+                          transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) => { e.target.style.borderColor = accentColor; e.target.style.color = accentColor; }}
+                        onMouseLeave={(e) => { e.target.style.borderColor = "var(--border-primary)"; e.target.style.color = isDone ? "#2D8A4E" : "var(--text-muted)"; }}
+                      >
+                        {isDone ? "✓" : "○"}
+                      </button>
+                    )}
+                    {isSpecial && onEditCrumb && (
+                      <button
+                        onClick={() => startEdit(crumb)}
+                        title={t("editIdea")}
+                        style={{
+                          all: "unset", cursor: "pointer", fontSize: 10,
+                          padding: "2px 6px", borderRadius: 3,
+                          border: "1px solid var(--border-primary)",
+                          color: "var(--text-muted)",
+                          fontFamily: "'JetBrains Mono', monospace",
+                          transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) => { e.target.style.borderColor = accentColor; e.target.style.color = accentColor; }}
+                        onMouseLeave={(e) => { e.target.style.borderColor = "var(--border-primary)"; e.target.style.color = "var(--text-muted)"; }}
+                      >
+                        ✎
+                      </button>
+                    )}
+                  </div>
+                  <div style={{
+                    fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.5, marginBottom: 4,
+                    textDecoration: isDone ? "line-through" : "none",
+                    opacity: isDone ? 0.7 : 1,
                   }}>
-                    💡 {t("ideaLabel")}
-                  </span>
-                )}
-                <span style={{
-                  fontSize: 13,
-                  color: isDone ? "var(--text-muted)" : (isIdea ? "#F59E0B" : (i === 0 ? "var(--text-primary)" : "var(--text-secondary)")),
-                  fontWeight: isIdea ? 600 : (i === 0 ? 600 : 400),
-                  textDecoration: isDone ? "line-through" : "none",
-                  borderBottom: isIdea && !isDone ? "1px dashed #F59E0B40" : "none",
-                  paddingBottom: isIdea && !isDone ? 1 : 0,
-                }}>
-                  {crumb.title}
-                </span>
-                <SourceBadge source={crumb.source} compact />
-                {isIdea && onToggleDone && (
-                  <button
-                    onClick={() => onToggleDone(crumb.id, !isDone)}
-                    title={isDone ? t("markUndone") : t("markDone")}
-                    style={{
-                      all: "unset", cursor: "pointer", fontSize: 10,
-                      padding: "2px 6px", borderRadius: 3,
-                      border: "1px solid var(--border-primary)",
-                      color: isDone ? "#2D8A4E" : "var(--text-muted)",
-                      fontFamily: "'JetBrains Mono', monospace",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => { e.target.style.borderColor = isDone ? "#2D8A4E" : "#F59E0B"; e.target.style.color = isDone ? "#2D8A4E" : "#F59E0B"; }}
-                    onMouseLeave={(e) => { e.target.style.borderColor = "var(--border-primary)"; e.target.style.color = isDone ? "#2D8A4E" : "var(--text-muted)"; }}
-                  >
-                    {isDone ? "✓" : "○"}
-                  </button>
-                )}
-              </div>
-              <div style={{
-                fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.5, marginBottom: 4,
-                textDecoration: isDone ? "line-through" : "none",
-              }}>
-                {crumb.body}
-              </div>
+                    {crumb.body}
+                  </div>
+                </>
+              )}
               <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
                 {formatDate(crumb.timestamp, lang)}
               </div>
@@ -269,6 +446,7 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [isIdea, setIsIdea] = useState(false);
+  const [isTest, setIsTest] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -279,10 +457,11 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   const handleSubmit = async () => {
     if (!title.trim() || saving) return;
     setSaving(true);
-    await onSubmit({ projectId, title, body, source: "claude-web", timestamp: new Date().toISOString(), isIdea });
+    await onSubmit({ projectId, title, body, source: "claude-web", timestamp: new Date().toISOString(), isIdea, isTest });
     setTitle("");
     setBody("");
     setIsIdea(false);
+    setIsTest(false);
     setSaving(false);
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 2000);
@@ -343,42 +522,40 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
         onFocus={(e) => (e.target.style.borderColor = "var(--border-hover)")}
         onBlur={(e) => (e.target.style.borderColor = "var(--border-primary)")}
       />
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          cursor: "pointer",
-          fontSize: 12,
-          fontFamily: "'JetBrains Mono', monospace",
-          color: isIdea ? "#F59E0B" : "var(--text-tertiary)",
-          transition: "color 0.2s",
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={isIdea}
-          onChange={(e) => setIsIdea(e.target.checked)}
-          style={{ display: "none" }}
-        />
-        <span
+      <div style={{ display: "flex", gap: 16 }}>
+        <label
           style={{
-            width: 18,
-            height: 18,
-            borderRadius: 4,
-            border: isIdea ? "2px solid #F59E0B" : "2px solid var(--border-primary)",
-            background: isIdea ? "#F59E0B20" : "transparent",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 11,
-            transition: "all 0.2s",
+            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+            fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+            color: isIdea ? "#F59E0B" : "var(--text-tertiary)", transition: "color 0.2s",
           }}
         >
-          {isIdea ? "💡" : ""}
-        </span>
-        {t("markAsIdea")}
-      </label>
+          <input type="checkbox" checked={isIdea} onChange={(e) => { setIsIdea(e.target.checked); if (e.target.checked) setIsTest(false); }} style={{ display: "none" }} />
+          <span style={{
+            width: 18, height: 18, borderRadius: 4,
+            border: isIdea ? "2px solid #F59E0B" : "2px solid var(--border-primary)",
+            background: isIdea ? "#F59E0B20" : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, transition: "all 0.2s",
+          }}>{isIdea ? "💡" : ""}</span>
+          {t("markAsIdea")}
+        </label>
+        <label
+          style={{
+            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+            fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+            color: isTest ? "#8B5CF6" : "var(--text-tertiary)", transition: "color 0.2s",
+          }}
+        >
+          <input type="checkbox" checked={isTest} onChange={(e) => { setIsTest(e.target.checked); if (e.target.checked) setIsIdea(false); }} style={{ display: "none" }} />
+          <span style={{
+            width: 18, height: 18, borderRadius: 4,
+            border: isTest ? "2px solid #8B5CF6" : "2px solid var(--border-primary)",
+            background: isTest ? "#8B5CF620" : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, transition: "all 0.2s",
+          }}>{isTest ? "🧪" : ""}</span>
+          {t("markAsTest")}
+        </label>
+      </div>
       <button
         onClick={handleSubmit}
         disabled={!title.trim() || saving}
@@ -386,8 +563,8 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
           padding: "10px 20px",
           borderRadius: 6,
           border: "none",
-          background: submitted ? "#2D8A4E" : title.trim() ? (isIdea ? "#F59E0B" : "var(--bg-btn)") : "var(--bg-btn-disabled)",
-          color: submitted ? "#fff" : title.trim() ? (isIdea ? "#000" : "var(--text-secondary)") : "var(--text-tertiary)",
+          background: submitted ? "#2D8A4E" : title.trim() ? (isIdea ? "#F59E0B" : isTest ? "#8B5CF6" : "var(--bg-btn)") : "var(--bg-btn-disabled)",
+          color: submitted ? "#fff" : title.trim() ? (isIdea ? "#000" : isTest ? "#fff" : "var(--text-secondary)") : "var(--text-tertiary)",
           fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
           textTransform: "uppercase",
@@ -407,7 +584,10 @@ function GlobalTimeline({ crumbs, t, lang, onToggleDone }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       {crumbs.map((crumb, i) => {
         const isIdea = crumb.isIdea === "true";
+        const isTest = crumb.isTest === "true";
         const isDone = crumb.isDone === "true";
+        const isSpecial = isIdea || isTest;
+        const accentColor = isIdea ? "#F59E0B" : isTest ? "#8B5CF6" : null;
         return (
           <div
             key={crumb.id || i}
@@ -417,15 +597,13 @@ function GlobalTimeline({ crumbs, t, lang, onToggleDone }) {
               padding: "10px 0",
               borderBottom: i < crumbs.length - 1 ? "1px solid var(--border-subtle)" : "none",
               animation: `fadeSlideIn 0.3s ease ${i * 0.04}s both`,
-              opacity: isDone ? 0.5 : 1,
-              transition: "opacity 0.3s",
             }}
           >
             <div
               style={{
                 width: 3, borderRadius: 2,
-                background: isIdea ? "#F59E0B" : (crumb.projectColor || "var(--text-muted)"),
-                flexShrink: 0, opacity: isIdea ? 1 : 0.6,
+                background: accentColor || (crumb.projectColor || "var(--text-muted)"),
+                flexShrink: 0, opacity: isSpecial ? 1 : 0.6,
               }}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -438,16 +616,24 @@ function GlobalTimeline({ crumbs, t, lang, onToggleDone }) {
                     border: "1px solid #F59E0B40",
                   }}>💡</span>
                 )}
+                {isTest && (
+                  <span style={{
+                    fontSize: 8, padding: "1px 4px", borderRadius: 2,
+                    background: "#8B5CF620", color: "#8B5CF6",
+                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+                    border: "1px solid #8B5CF640",
+                  }}>🧪</span>
+                )}
                 <span style={{
                   fontSize: 12,
-                  color: isDone ? "var(--text-muted)" : (isIdea ? "#F59E0B" : "var(--text-secondary)"),
-                  fontWeight: isIdea ? 600 : 400,
+                  color: isDone ? (accentColor ? accentColor + "90" : "var(--text-muted)") : (accentColor || "var(--text-secondary)"),
+                  fontWeight: isSpecial ? 600 : 400,
                   textDecoration: isDone ? "line-through" : "none",
                 }}>
                   {crumb.title}
                 </span>
                 <SourceBadge source={crumb.source} compact />
-                {isIdea && onToggleDone && (
+                {isSpecial && onToggleDone && (
                   <button
                     onClick={() => onToggleDone(crumb.id, !isDone)}
                     style={{
@@ -481,6 +667,10 @@ function ProjectForm({ project, onSave, onCancel, t }) {
   const [description, setDescription] = useState(project?.description || "");
   const [status, setStatus] = useState(project?.status || "idea");
   const [color, setColor] = useState(project?.color || COLOR_PALETTE[0]);
+  const [repoUrl, setRepoUrl] = useState(project?.repoUrl || "");
+  const [vercelUrl, setVercelUrl] = useState(project?.vercelUrl || "");
+  const [environment, setEnvironment] = useState(project?.environment || "");
+  const [techStack, setTechStack] = useState(project?.techStack || "");
   const [saving, setSaving] = useState(false);
 
   const inputStyle = {
@@ -499,7 +689,7 @@ function ProjectForm({ project, onSave, onCancel, t }) {
   const handleSave = async () => {
     if (!name.trim() || saving) return;
     setSaving(true);
-    await onSave({ name, description, status, color });
+    await onSave({ name, description, status, color, repoUrl, vercelUrl, environment, techStack });
     setSaving(false);
   };
 
@@ -507,11 +697,52 @@ function ProjectForm({ project, onSave, onCancel, t }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeSlideIn 0.2s ease" }}>
       <input type="text" placeholder={t("name")} value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
       <input type="text" placeholder={t("description")} value={description} onChange={(e) => setDescription(e.target.value)} style={inputStyle} />
-      <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-        {STATUS_OPTIONS.map((s) => (
-          <option key={s} value={s}>{s === "desarrollo" ? t("development") : s === "pausado" ? t("paused") : t("idea")}</option>
-        ))}
-      </select>
+      <input type="text" placeholder={t("repoUrl") + " (https://github.com/...)"} value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} style={inputStyle} />
+      <input type="text" placeholder={t("vercelUrl") + " (https://....vercel.app)"} value={vercelUrl} onChange={(e) => setVercelUrl(e.target.value)} style={inputStyle} />
+      <div style={{ display: "flex", gap: 8 }}>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...inputStyle, cursor: "pointer", flex: 1 }}>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s === "desarrollo" ? t("development") : s === "pausado" ? t("paused") : t("idea")}</option>
+          ))}
+        </select>
+        <select value={environment} onChange={(e) => setEnvironment(e.target.value)} style={{ ...inputStyle, cursor: "pointer", flex: 1 }}>
+          {ENV_OPTIONS.map((e) => (
+            <option key={e} value={e}>{e ? t(`env${e.charAt(0).toUpperCase() + e.slice(1)}`) : `-- ${t("environment")} --`}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          {t("techStack")}
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {Object.entries(TECH_ICONS).map(([key, meta]) => {
+            const selected = techStack.split(",").map(s => s.trim()).includes(key);
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  const current = techStack.split(",").map(s => s.trim()).filter(Boolean);
+                  const next = selected ? current.filter(k => k !== key) : [...current, key];
+                  setTechStack(next.join(","));
+                }}
+                style={{
+                  all: "unset", cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "3px 8px", borderRadius: 4,
+                  background: selected ? meta.color + "20" : "transparent",
+                  border: selected ? `1px solid ${meta.color}50` : "1px solid var(--border-primary)",
+                  fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                  color: selected ? meta.color : "var(--text-muted)",
+                  transition: "all 0.2s",
+                }}
+              >
+                <span style={{ fontSize: 10 }}>{meta.icon}</span> {meta.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {COLOR_PALETTE.map((c) => (
           <button
@@ -793,6 +1024,7 @@ export default function MissionControl() {
   const [editingProject, setEditingProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [contextCopied, setContextCopied] = useState(false);
   const detailRef = useRef(null);
 
   const API_KEY = "a31e233f73cd69d68ff77e7b55769accf6ed5eb3f362c5e76a24f3d86ce189f3";
@@ -944,6 +1176,26 @@ ${ids}`;
     }
   };
 
+  const handleEditCrumb = async (crumbId, fields) => {
+    await api.updateCrumb({ crumbId, ...fields });
+    await loadRecentCrumbs();
+    if (selectedProject) {
+      const fresh = await api.getCrumbs(selectedProject.id);
+      setProjectCrumbs(fresh.crumbs || []);
+    }
+  };
+
+  const handleCopyContext = () => {
+    const contextFile = projectFiles.find((f) => f.name === "CONTEXT.md");
+    if (!contextFile) {
+      alert(t("noContext"));
+      return;
+    }
+    navigator.clipboard.writeText(contextFile.content || "");
+    setContextCopied(true);
+    setTimeout(() => setContextCopied(false), 2000);
+  };
+
   const handleCreateProject = async (data) => {
     await api.createProject(data);
     await loadProjects();
@@ -1057,10 +1309,32 @@ ${ids}`;
               {view === "detail" ? selectedProject?.name : "Mission Control"}
             </h1>
             {view === "detail" && selectedProject && (
-              <StatusDot status={selectedProject.status} color={selectedProject.color} t={t} />
+              <>
+                <StatusDot status={selectedProject.status} color={selectedProject.color} t={t} />
+                <EnvBadge environment={selectedProject.environment} t={t} />
+                <ProjectLinks project={selectedProject} />
+              </>
             )}
 
             <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+              {view === "detail" && (
+                <button
+                  onClick={handleCopyContext}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 11,
+                    padding: "4px 8px", borderRadius: 6,
+                    border: `1px solid ${contextCopied ? "#2D8A4E" : "var(--border-primary)"}`,
+                    background: contextCopied ? "#2D8A4E" : "var(--bg-card)",
+                    color: contextCopied ? "#fff" : "var(--text-tertiary)",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: "0.05em", transition: "all 0.3s",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={t("copyContext")}
+                >
+                  {contextCopied ? t("contextCopied") : t("copyContext")}
+                </button>
+              )}
               <button
                 onClick={() => handleCopyPrompt()}
                 style={{
@@ -1210,6 +1484,13 @@ ${ids}`;
             }}
           >
             <div>
+              {/* Tech stack */}
+              {selectedProject.techStack && (
+                <div style={{ marginBottom: 16 }}>
+                  <TechStackBadges techStack={selectedProject.techStack} />
+                </div>
+              )}
+
               {/* Edit/Delete buttons */}
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <button
@@ -1284,7 +1565,7 @@ ${ids}`;
               }}>
                 {t("fullTimeline")} · {projectCrumbs.length} {t("crumbsInTimeline")}
               </div>
-              <Timeline crumbs={projectCrumbs} projectColor={selectedProject.color} lang={lang} onToggleDone={handleToggleDone} t={t} />
+              <Timeline crumbs={projectCrumbs} projectColor={selectedProject.color} lang={lang} onToggleDone={handleToggleDone} onEditCrumb={handleEditCrumb} t={t} />
             </div>
 
             {/* Right: Crumb form + stats */}

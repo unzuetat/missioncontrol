@@ -96,6 +96,7 @@ export async function createCrumb(crumbData) {
     timestamp,
     body: crumbData.body || '',
     isIdea: crumbData.isIdea ? 'true' : '',
+    isTest: crumbData.isTest ? 'true' : '',
     isDone: '',
   };
 

@@ -19,11 +19,15 @@ export default async function handler(req, res) {
     }
 
     const updates = {};
-    const { name, description, status, color } = req.body || {};
+    const { name, description, status, color, repoUrl, vercelUrl, environment, techStack } = req.body || {};
     if (name !== undefined) updates.name = name;
     if (description !== undefined) updates.description = description;
     if (status !== undefined) updates.status = status;
     if (color !== undefined) updates.color = color;
+    if (repoUrl !== undefined) updates.repoUrl = repoUrl;
+    if (vercelUrl !== undefined) updates.vercelUrl = vercelUrl;
+    if (environment !== undefined) updates.environment = environment;
+    if (techStack !== undefined) updates.techStack = techStack;
 
     if (Object.keys(updates).length > 0) {
       await kv.hSet(keys.project(id), updates);
