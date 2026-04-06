@@ -42,6 +42,10 @@ const strings = {
     fileSaved: '✓ Guardado',
     deleteFile: 'Borrar',
     noFiles: 'Sin archivos',
+    markAsIdea: 'Es una idea',
+    ideaLabel: 'IDEA',
+    markDone: 'Marcar como hecha',
+    markUndone: 'Desmarcar',
   },
   en: {
     projects: 'Projects',
@@ -86,6 +90,10 @@ const strings = {
     fileSaved: '✓ Saved',
     deleteFile: 'Delete',
     noFiles: 'No files',
+    markAsIdea: 'It\'s an idea',
+    ideaLabel: 'IDEA',
+    markDone: 'Mark as done',
+    markUndone: 'Unmark',
   },
 };
 

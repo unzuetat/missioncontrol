@@ -95,6 +95,8 @@ export async function createCrumb(crumbData) {
     source: crumbData.source || 'claude-web',
     timestamp,
     body: crumbData.body || '',
+    isIdea: crumbData.isIdea ? 'true' : '',
+    isDone: '',
   };
 
   await kv.hSet(keys.crumb(id), crumb);
@@ -108,6 +110,12 @@ export async function createCrumb(crumbData) {
   }
 
   return { id, ...crumb };
+}
+
+export async function updateCrumb(crumbId, fields) {
+  const kv = await getClient();
+  await kv.hSet(keys.crumb(crumbId), fields);
+  return await kv.hGetAll(keys.crumb(crumbId));
 }
 
 export async function deleteProjectFull(projectId) {

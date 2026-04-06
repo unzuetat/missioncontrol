@@ -1,4 +1,4 @@
-import { getKv, keys, getProjectCrumbs, getRecentCrumbs, createCrumb } from './_lib/kv.js';
+import { getKv, keys, getProjectCrumbs, getRecentCrumbs, createCrumb, updateCrumb } from './_lib/kv.js';
 import { checkAuth, setCors } from './_lib/auth.js';
 
 export default async function handler(req, res) {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { projectId, title, source, body, timestamp } = req.body || {};
+    const { projectId, title, source, body, timestamp, isIdea } = req.body || {};
     if (!projectId || !title) {
       return res.status(400).json({ error: 'projectId and title are required' });
     }
@@ -29,8 +29,17 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const crumb = await createCrumb({ projectId, title, source, body, timestamp });
+    const crumb = await createCrumb({ projectId, title, source, body, timestamp, isIdea });
     return res.status(201).json({ crumb });
+  }
+
+  if (req.method === 'PATCH') {
+    const { crumbId, isDone } = req.body || {};
+    if (!crumbId) {
+      return res.status(400).json({ error: 'crumbId is required' });
+    }
+    const crumb = await updateCrumb(crumbId, { isDone: isDone ? 'true' : '' });
+    return res.status(200).json({ crumb });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

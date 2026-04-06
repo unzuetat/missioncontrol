@@ -17,6 +17,7 @@ export const api = {
   deleteProject: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
   getCrumbs: (projectId) => request(`/crumbs${projectId ? `?projectId=${projectId}` : ''}`),
   createCrumb: (data) => request('/crumbs', { method: 'POST', body: JSON.stringify(data) }),
+  updateCrumb: (data) => request('/crumbs', { method: 'PATCH', body: JSON.stringify(data) }),
   importCrumbs: (data) => request('/import', { method: 'POST', body: JSON.stringify(data) }),
   getFiles: (projectId) => request(`/files?projectId=${projectId}`),
   createFile: (data) => request('/files', { method: 'POST', body: JSON.stringify(data) }),

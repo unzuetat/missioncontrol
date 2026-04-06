@@ -34,6 +34,7 @@ export default async function handler(req, res) {
       source: c.source || 'claude-web',
       body: c.body || '',
       timestamp: c.timestamp,
+      isIdea: c.isIdea,
     });
     imported.push(crumb);
   }

@@ -170,50 +170,96 @@ function ProjectCard({ project, onClick, isSelected, t, lang }) {
   );
 }
 
-function Timeline({ crumbs, projectColor, lang }) {
+function Timeline({ crumbs, projectColor, lang, onToggleDone, t }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
-      {crumbs.map((crumb, i) => (
-        <div
-          key={crumb.id || i}
-          style={{
-            display: "flex",
-            gap: 16,
-            padding: "14px 0",
-            position: "relative",
-            animation: `fadeSlideIn 0.3s ease ${i * 0.06}s both`,
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0 }}>
-            <div
-              style={{
-                width: 9, height: 9, borderRadius: "50%",
-                background: i === 0 ? projectColor : "transparent",
-                border: i === 0 ? "none" : `1.5px solid ${(SOURCE_META[crumb.source]?.color || "#888")}60`,
-                boxShadow: i === 0 ? `0 0 10px ${projectColor}60` : "none",
-                flexShrink: 0, marginTop: 4,
-              }}
-            />
-            {i < crumbs.length - 1 && (
-              <div style={{ width: 1, flex: 1, background: "var(--border-primary)", marginTop: 4 }} />
-            )}
+      {crumbs.map((crumb, i) => {
+        const isIdea = crumb.isIdea === "true";
+        const isDone = crumb.isDone === "true";
+        return (
+          <div
+            key={crumb.id || i}
+            style={{
+              display: "flex",
+              gap: 16,
+              padding: "14px 0",
+              position: "relative",
+              animation: `fadeSlideIn 0.3s ease ${i * 0.06}s both`,
+              opacity: isDone ? 0.5 : 1,
+              transition: "opacity 0.3s",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0 }}>
+              <div
+                style={{
+                  width: 9, height: 9, borderRadius: isIdea ? 2 : "50%",
+                  background: isIdea ? "#F59E0B" : (i === 0 ? projectColor : "transparent"),
+                  border: isIdea ? "none" : (i === 0 ? "none" : `1.5px solid ${(SOURCE_META[crumb.source]?.color || "#888")}60`),
+                  boxShadow: isIdea ? "0 0 10px #F59E0B60" : (i === 0 ? `0 0 10px ${projectColor}60` : "none"),
+                  flexShrink: 0, marginTop: 4,
+                }}
+              />
+              {i < crumbs.length - 1 && (
+                <div style={{ width: 1, flex: 1, background: "var(--border-primary)", marginTop: 4 }} />
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                {isIdea && (
+                  <span style={{
+                    fontSize: 9, padding: "1px 6px", borderRadius: 3,
+                    background: isDone ? "var(--bg-btn-disabled)" : "#F59E0B20",
+                    color: isDone ? "var(--text-muted)" : "#F59E0B",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontWeight: 600, letterSpacing: "0.1em",
+                    border: isDone ? "none" : "1px solid #F59E0B40",
+                  }}>
+                    💡 {t("ideaLabel")}
+                  </span>
+                )}
+                <span style={{
+                  fontSize: 13,
+                  color: isDone ? "var(--text-muted)" : (isIdea ? "#F59E0B" : (i === 0 ? "var(--text-primary)" : "var(--text-secondary)")),
+                  fontWeight: isIdea ? 600 : (i === 0 ? 600 : 400),
+                  textDecoration: isDone ? "line-through" : "none",
+                  borderBottom: isIdea && !isDone ? "1px dashed #F59E0B40" : "none",
+                  paddingBottom: isIdea && !isDone ? 1 : 0,
+                }}>
+                  {crumb.title}
+                </span>
+                <SourceBadge source={crumb.source} compact />
+                {isIdea && onToggleDone && (
+                  <button
+                    onClick={() => onToggleDone(crumb.id, !isDone)}
+                    title={isDone ? t("markUndone") : t("markDone")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 10,
+                      padding: "2px 6px", borderRadius: 3,
+                      border: "1px solid var(--border-primary)",
+                      color: isDone ? "#2D8A4E" : "var(--text-muted)",
+                      fontFamily: "'JetBrains Mono', monospace",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.borderColor = isDone ? "#2D8A4E" : "#F59E0B"; e.target.style.color = isDone ? "#2D8A4E" : "#F59E0B"; }}
+                    onMouseLeave={(e) => { e.target.style.borderColor = "var(--border-primary)"; e.target.style.color = isDone ? "#2D8A4E" : "var(--text-muted)"; }}
+                  >
+                    {isDone ? "✓" : "○"}
+                  </button>
+                )}
+              </div>
+              <div style={{
+                fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.5, marginBottom: 4,
+                textDecoration: isDone ? "line-through" : "none",
+              }}>
+                {crumb.body}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                {formatDate(crumb.timestamp, lang)}
+              </div>
+            </div>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, color: i === 0 ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: i === 0 ? 600 : 400 }}>
-                {crumb.title}
-              </span>
-              <SourceBadge source={crumb.source} compact />
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.5, marginBottom: 4 }}>
-              {crumb.body}
-            </div>
-            <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
-              {formatDate(crumb.timestamp, lang)}
-            </div>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -222,6 +268,7 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [isIdea, setIsIdea] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -232,9 +279,10 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   const handleSubmit = async () => {
     if (!title.trim() || saving) return;
     setSaving(true);
-    await onSubmit({ projectId, title, body, source: "claude-web", timestamp: new Date().toISOString() });
+    await onSubmit({ projectId, title, body, source: "claude-web", timestamp: new Date().toISOString(), isIdea });
     setTitle("");
     setBody("");
+    setIsIdea(false);
     setSaving(false);
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 2000);
@@ -295,6 +343,42 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
         onFocus={(e) => (e.target.style.borderColor = "var(--border-hover)")}
         onBlur={(e) => (e.target.style.borderColor = "var(--border-primary)")}
       />
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          cursor: "pointer",
+          fontSize: 12,
+          fontFamily: "'JetBrains Mono', monospace",
+          color: isIdea ? "#F59E0B" : "var(--text-tertiary)",
+          transition: "color 0.2s",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={isIdea}
+          onChange={(e) => setIsIdea(e.target.checked)}
+          style={{ display: "none" }}
+        />
+        <span
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: isIdea ? "2px solid #F59E0B" : "2px solid var(--border-primary)",
+            background: isIdea ? "#F59E0B20" : "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            transition: "all 0.2s",
+          }}
+        >
+          {isIdea ? "💡" : ""}
+        </span>
+        {t("markAsIdea")}
+      </label>
       <button
         onClick={handleSubmit}
         disabled={!title.trim() || saving}
@@ -302,8 +386,8 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
           padding: "10px 20px",
           borderRadius: 6,
           border: "none",
-          background: submitted ? "#2D8A4E" : title.trim() ? "var(--bg-btn)" : "var(--bg-btn-disabled)",
-          color: submitted ? "#fff" : title.trim() ? "var(--text-secondary)" : "var(--text-tertiary)",
+          background: submitted ? "#2D8A4E" : title.trim() ? (isIdea ? "#F59E0B" : "var(--bg-btn)") : "var(--bg-btn-disabled)",
+          color: submitted ? "#fff" : title.trim() ? (isIdea ? "#000" : "var(--text-secondary)") : "var(--text-tertiary)",
           fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
           textTransform: "uppercase",
@@ -318,43 +402,76 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   );
 }
 
-function GlobalTimeline({ crumbs, t, lang }) {
+function GlobalTimeline({ crumbs, t, lang, onToggleDone }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {crumbs.map((crumb, i) => (
-        <div
-          key={crumb.id || i}
-          style={{
-            display: "flex",
-            gap: 12,
-            padding: "10px 0",
-            borderBottom: i < crumbs.length - 1 ? "1px solid var(--border-subtle)" : "none",
-            animation: `fadeSlideIn 0.3s ease ${i * 0.04}s both`,
-          }}
-        >
+      {crumbs.map((crumb, i) => {
+        const isIdea = crumb.isIdea === "true";
+        const isDone = crumb.isDone === "true";
+        return (
           <div
+            key={crumb.id || i}
             style={{
-              width: 3, borderRadius: 2,
-              background: crumb.projectColor || "var(--text-muted)",
-              flexShrink: 0, opacity: 0.6,
+              display: "flex",
+              gap: 12,
+              padding: "10px 0",
+              borderBottom: i < crumbs.length - 1 ? "1px solid var(--border-subtle)" : "none",
+              animation: `fadeSlideIn 0.3s ease ${i * 0.04}s both`,
+              opacity: isDone ? 0.5 : 1,
+              transition: "opacity 0.3s",
             }}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{crumb.title}</span>
-              <SourceBadge source={crumb.source} compact />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 10, color: crumb.projectColor || "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", opacity: 0.8 }}>
-                {crumb.projectName || ""}
-              </span>
-              <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
-                {timeAgo(crumb.timestamp, lang)}
-              </span>
+          >
+            <div
+              style={{
+                width: 3, borderRadius: 2,
+                background: isIdea ? "#F59E0B" : (crumb.projectColor || "var(--text-muted)"),
+                flexShrink: 0, opacity: isIdea ? 1 : 0.6,
+              }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
+                {isIdea && (
+                  <span style={{
+                    fontSize: 8, padding: "1px 4px", borderRadius: 2,
+                    background: "#F59E0B20", color: "#F59E0B",
+                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+                    border: "1px solid #F59E0B40",
+                  }}>💡</span>
+                )}
+                <span style={{
+                  fontSize: 12,
+                  color: isDone ? "var(--text-muted)" : (isIdea ? "#F59E0B" : "var(--text-secondary)"),
+                  fontWeight: isIdea ? 600 : 400,
+                  textDecoration: isDone ? "line-through" : "none",
+                }}>
+                  {crumb.title}
+                </span>
+                <SourceBadge source={crumb.source} compact />
+                {isIdea && onToggleDone && (
+                  <button
+                    onClick={() => onToggleDone(crumb.id, !isDone)}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 9,
+                      color: isDone ? "#2D8A4E" : "var(--text-muted)",
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}
+                  >
+                    {isDone ? "✓" : "○"}
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: crumb.projectColor || "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", opacity: 0.8 }}>
+                  {crumb.projectName || ""}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {timeAgo(crumb.timestamp, lang)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -818,6 +935,15 @@ ${ids}`;
     }
   };
 
+  const handleToggleDone = async (crumbId, isDone) => {
+    await api.updateCrumb({ crumbId, isDone });
+    await loadRecentCrumbs();
+    if (selectedProject) {
+      const fresh = await api.getCrumbs(selectedProject.id);
+      setProjectCrumbs(fresh.crumbs || []);
+    }
+  };
+
   const handleCreateProject = async (data) => {
     await api.createProject(data);
     await loadProjects();
@@ -1068,7 +1194,7 @@ ${ids}`;
                 }}>
                   {t("recentActivity")}
                 </div>
-                <GlobalTimeline crumbs={enrichedRecent} t={t} lang={lang} />
+                <GlobalTimeline crumbs={enrichedRecent} t={t} lang={lang} onToggleDone={handleToggleDone} />
               </div>
             </div>
           </div>
@@ -1158,7 +1284,7 @@ ${ids}`;
               }}>
                 {t("fullTimeline")} · {projectCrumbs.length} {t("crumbsInTimeline")}
               </div>
-              <Timeline crumbs={projectCrumbs} projectColor={selectedProject.color} lang={lang} />
+              <Timeline crumbs={projectCrumbs} projectColor={selectedProject.color} lang={lang} onToggleDone={handleToggleDone} t={t} />
             </div>
 
             {/* Right: Crumb form + stats */}
