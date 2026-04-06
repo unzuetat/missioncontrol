@@ -63,6 +63,13 @@ const strings = {
     editIdea: 'Editar',
     saveEdit: 'Guardar',
     cancelEdit: 'Cancelar',
+    allIdeas: 'Ideas',
+    allTests: 'Testing',
+    noIdeas: 'No hay ideas registradas.',
+    noTests: 'No hay tests registrados.',
+    allProjects: 'Todos los proyectos',
+    pending: 'pendientes',
+    done: 'hechas',
   },
   en: {
     projects: 'Projects',
@@ -128,6 +135,13 @@ const strings = {
     editIdea: 'Edit',
     saveEdit: 'Save',
     cancelEdit: 'Cancel',
+    allIdeas: 'Ideas',
+    allTests: 'Testing',
+    noIdeas: 'No ideas registered.',
+    noTests: 'No tests registered.',
+    allProjects: 'All projects',
+    pending: 'pending',
+    done: 'done',
   },
 };
 

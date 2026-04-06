@@ -430,7 +430,10 @@ function Timeline({ crumbs, projectColor, lang, onToggleDone, onEditCrumb, t }) 
                   </div>
                 </>
               )}
-              <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                {crumb.projectName && (
+                  <span style={{ color: crumb.projectColor || "var(--text-muted)", opacity: 0.8 }}>{crumb.projectName}</span>
+                )}
                 {formatDate(crumb.timestamp, lang)}
               </div>
             </div>
@@ -1009,6 +1012,102 @@ function FilePanel({ files, onCreate, onUpdate, onDelete, t }) {
   );
 }
 
+function IdeasTestingView({ type, projects, onToggleDone, onEditCrumb, t, lang }) {
+  const [allCrumbs, setAllCrumbs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAll = async () => {
+      setLoading(true);
+      const promises = projects.map((p) => api.getCrumbs(p.id).then((d) => (d.crumbs || []).map((c) => ({ ...c, projectName: p.name, projectColor: p.color }))));
+      const results = await Promise.all(promises);
+      const flat = results.flat().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      setAllCrumbs(flat);
+      setLoading(false);
+    };
+    loadAll();
+  }, [projects]);
+
+  const isIdea = type === "idea";
+  const filtered = allCrumbs.filter((c) => isIdea ? c.isIdea === "true" : c.isTest === "true");
+  const pending = filtered.filter((c) => c.isDone !== "true");
+  const done = filtered.filter((c) => c.isDone === "true");
+  const accentColor = isIdea ? "#F59E0B" : "#8B5CF6";
+  const emptyMsg = isIdea ? t("noIdeas") : t("noTests");
+
+  const handleToggle = async (crumbId, isDone) => {
+    await onToggleDone(crumbId, isDone);
+    // Reload
+    const promises = projects.map((p) => api.getCrumbs(p.id).then((d) => (d.crumbs || []).map((c) => ({ ...c, projectName: p.name, projectColor: p.color }))));
+    const results = await Promise.all(promises);
+    setAllCrumbs(results.flat().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+  };
+
+  const handleEdit = async (crumbId, fields) => {
+    await onEditCrumb(crumbId, fields);
+    const promises = projects.map((p) => api.getCrumbs(p.id).then((d) => (d.crumbs || []).map((c) => ({ ...c, projectName: p.name, projectColor: p.color }))));
+    const results = await Promise.all(promises);
+    setAllCrumbs(results.flat().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+  };
+
+  if (loading) {
+    return <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{t("loading")}</div>;
+  }
+
+  if (filtered.length === 0) {
+    return <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{emptyMsg}</div>;
+  }
+
+  return (
+    <div style={{ maxWidth: 800, animation: "fadeSlideIn 0.3s ease" }}>
+      {/* Stats bar */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 24, alignItems: "center" }}>
+        <span style={{
+          fontSize: 24, fontWeight: 700, color: accentColor,
+          fontFamily: "'Space Grotesk', sans-serif",
+        }}>{pending.length}</span>
+        <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>{t("pending")}</span>
+        <div style={{ width: 1, height: 20, background: "var(--border-primary)" }} />
+        <span style={{
+          fontSize: 24, fontWeight: 700, color: "var(--text-muted)",
+          fontFamily: "'Space Grotesk', sans-serif",
+        }}>{done.length}</span>
+        <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{t("done")}</span>
+      </div>
+
+      {/* Pending items */}
+      <Timeline
+        crumbs={pending}
+        projectColor={accentColor}
+        lang={lang}
+        onToggleDone={handleToggle}
+        onEditCrumb={handleEdit}
+        t={t}
+      />
+
+      {/* Done items */}
+      {done.length > 0 && (
+        <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-primary)" }}>
+          <div style={{
+            fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace",
+            textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12,
+          }}>
+            ✓ {t("done")} ({done.length})
+          </div>
+          <Timeline
+            crumbs={done}
+            projectColor={accentColor}
+            lang={lang}
+            onToggleDone={handleToggle}
+            onEditCrumb={handleEdit}
+            t={t}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- MAIN APP ---
 export default function MissionControl() {
   const [projects, setProjects] = useState([]);
@@ -1301,12 +1400,12 @@ ${ids}`;
             )}
             <h1
               style={{
-                fontSize: view === "detail" ? 18 : 24,
+                fontSize: view === "grid" ? 24 : 18,
                 fontWeight: 700, margin: 0, letterSpacing: "-0.02em",
                 color: "var(--text-primary)", transition: "font-size 0.3s",
               }}
             >
-              {view === "detail" ? selectedProject?.name : "Mission Control"}
+              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : "Mission Control"}
             </h1>
             {view === "detail" && selectedProject && (
               <>
@@ -1314,6 +1413,19 @@ ${ids}`;
                 <EnvBadge environment={selectedProject.environment} t={t} />
                 <ProjectLinks project={selectedProject} />
               </>
+            )}
+            {(view === "ideas" || view === "testing") && (
+              <button
+                onClick={() => setView("grid")}
+                style={{
+                  all: "unset", cursor: "pointer", fontSize: 13,
+                  color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace",
+                  padding: "4px 10px", borderRadius: 4,
+                  border: "1px solid var(--border-primary)", transition: "all 0.2s",
+                }}
+              >
+                {t("backToProjects")}
+              </button>
             )}
 
             <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
@@ -1420,6 +1532,36 @@ ${ids}`;
                 >
                   +
                 </button>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => setView("ideas")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 11,
+                      padding: "5px 12px", borderRadius: 6,
+                      background: "#F59E0B18", border: "1px solid #F59E0B35",
+                      color: "#F59E0B", fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = "#F59E0B28"; }}
+                    onMouseLeave={(e) => { e.target.style.background = "#F59E0B18"; }}
+                  >
+                    💡 {t("allIdeas")}
+                  </button>
+                  <button
+                    onClick={() => setView("testing")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 11,
+                      padding: "5px 12px", borderRadius: 6,
+                      background: "#8B5CF618", border: "1px solid #8B5CF635",
+                      color: "#8B5CF6", fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = "#8B5CF628"; }}
+                    onMouseLeave={(e) => { e.target.style.background = "#8B5CF618"; }}
+                  >
+                    🧪 {t("allTests")}
+                  </button>
+                </div>
               </div>
 
               {showNewProject && (
@@ -1472,6 +1614,34 @@ ${ids}`;
               </div>
             </div>
           </div>
+        )}
+
+        {/* IDEAS VIEW */}
+        {!loading && view === "ideas" && (
+          <IdeasTestingView
+            type="idea"
+            crumbs={recentCrumbs}
+            allCrumbs={recentCrumbs}
+            projects={projects}
+            onToggleDone={handleToggleDone}
+            onEditCrumb={handleEditCrumb}
+            t={t}
+            lang={lang}
+          />
+        )}
+
+        {/* TESTING VIEW */}
+        {!loading && view === "testing" && (
+          <IdeasTestingView
+            type="test"
+            crumbs={recentCrumbs}
+            allCrumbs={recentCrumbs}
+            projects={projects}
+            onToggleDone={handleToggleDone}
+            onEditCrumb={handleEditCrumb}
+            t={t}
+            lang={lang}
+          />
         )}
 
         {/* DETAIL VIEW */}
