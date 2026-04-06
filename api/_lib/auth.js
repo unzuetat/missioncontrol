@@ -12,6 +12,10 @@ export function checkAuth(req) {
   if (prodUrl && (origin.includes(prodUrl) || referer.includes(prodUrl))) return true;
   if (origin.includes('localhost') || referer.includes('localhost')) return true;
 
+  // Allow all Vercel preview deployments for this project
+  if (origin.includes('missioncontrol') && origin.includes('.vercel.app')) return true;
+  if (referer.includes('missioncontrol') && referer.includes('.vercel.app')) return true;
+
   // External requests require API key
   const key = req.headers['x-api-key'];
   return key && key === process.env.MC_API_KEY;
