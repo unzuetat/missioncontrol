@@ -12,6 +12,7 @@ const SOURCE_META = {
 const STATUS_OPTIONS = ["desarrollo", "pausado", "idea"];
 const COLOR_PALETTE = ["#FF6B35", "#4ECDC4", "#A78BFA", "#F7DC6F", "#95A5A6", "#E67E22", "#3B82F6", "#EF4444", "#10B981", "#EC4899"];
 const ENV_OPTIONS = ["", "local", "test", "branch", "staging", "production"];
+const DEPLOY_COLORS = { test: "#F59E0B", prod: "#10B981", none: "#555" };
 const TECH_ICONS = {
   vercel: { icon: "▲", label: "Vercel", color: "#000" },
   firebase: { icon: "🔥", label: "Firebase", color: "#FFCA28" },
@@ -132,6 +133,47 @@ function EnvBadge({ environment, t }) {
   );
 }
 
+function DeployBadge({ label, url, color }) {
+  const active = !!url;
+  const c = active ? color : DEPLOY_COLORS.none;
+  return (
+    <span
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 7px", borderRadius: 4,
+        background: c + "18", border: `1px solid ${c}35`,
+        fontSize: 9, fontFamily: "'JetBrains Mono', monospace",
+        color: c, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600,
+        opacity: active ? 1 : 0.5,
+      }}
+    >
+      <span style={{
+        width: 5, height: 5, borderRadius: "50%",
+        background: c,
+        boxShadow: active ? `0 0 6px ${c}60` : "none",
+        animation: active ? "pulse 2s ease-in-out infinite" : "none",
+      }} />
+      {label}
+    </span>
+  );
+}
+
+function DeploymentBadges({ project, t }) {
+  const hasTest = !!project.testUrl;
+  const hasProd = !!project.prodUrl;
+  // Fallback to old environment/vercelUrl field
+  if (!hasTest && !hasProd && project.environment) {
+    return <EnvBadge environment={project.environment} t={t} />;
+  }
+  if (!hasTest && !hasProd) return null;
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      <DeployBadge label={t("testEnv")} url={project.testUrl} color={DEPLOY_COLORS.test} />
+      <DeployBadge label={t("prodEnv")} url={project.prodUrl} color={DEPLOY_COLORS.prod} />
+    </div>
+  );
+}
+
 function ProjectLinks({ project }) {
   const links = [];
   if (project.repoUrl) {
@@ -144,13 +186,14 @@ function ProjectLinks({ project }) {
       >⬡</a>
     );
   }
-  if (project.vercelUrl) {
+  const deployUrl = project.prodUrl || project.testUrl || project.vercelUrl;
+  if (deployUrl) {
     links.push(
-      <a key="vc" href={project.vercelUrl} target="_blank" rel="noopener noreferrer"
+      <a key="vc" href={deployUrl} target="_blank" rel="noopener noreferrer"
         style={{ fontSize: 14, textDecoration: "none", opacity: 0.7, transition: "opacity 0.2s", color: "var(--text-secondary)" }}
         onMouseEnter={(e) => e.target.style.opacity = 1}
         onMouseLeave={(e) => e.target.style.opacity = 0.7}
-        title="Vercel"
+        title={project.prodUrl ? "Production" : "Test"}
       >▲</a>
     );
   }
@@ -236,7 +279,7 @@ function ProjectCard({ project, onClick, isSelected, t, lang }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <StatusDot status={project.status} color={project.color} t={t} />
-          <EnvBadge environment={project.environment} t={t} />
+          <DeploymentBadges project={project} t={t} />
         </div>
       </div>
       <TechStackBadges techStack={project.techStack} />
@@ -671,8 +714,10 @@ function ProjectForm({ project, onSave, onCancel, t }) {
   const [status, setStatus] = useState(project?.status || "idea");
   const [color, setColor] = useState(project?.color || COLOR_PALETTE[0]);
   const [repoUrl, setRepoUrl] = useState(project?.repoUrl || "");
-  const [vercelUrl, setVercelUrl] = useState(project?.vercelUrl || "");
-  const [environment, setEnvironment] = useState(project?.environment || "");
+  const [testUrl, setTestUrl] = useState(project?.testUrl || "");
+  const [testBranch, setTestBranch] = useState(project?.testBranch || "");
+  const [prodUrl, setProdUrl] = useState(project?.prodUrl || "");
+  const [prodBranch, setProdBranch] = useState(project?.prodBranch || "");
   const [techStack, setTechStack] = useState(project?.techStack || "");
   const [saving, setSaving] = useState(false);
 
@@ -692,7 +737,7 @@ function ProjectForm({ project, onSave, onCancel, t }) {
   const handleSave = async () => {
     if (!name.trim() || saving) return;
     setSaving(true);
-    await onSave({ name, description, status, color, repoUrl, vercelUrl, environment, techStack });
+    await onSave({ name, description, status, color, repoUrl, testUrl, testBranch, prodUrl, prodBranch, techStack });
     setSaving(false);
   };
 
@@ -701,18 +746,44 @@ function ProjectForm({ project, onSave, onCancel, t }) {
       <input type="text" placeholder={t("name")} value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
       <input type="text" placeholder={t("description")} value={description} onChange={(e) => setDescription(e.target.value)} style={inputStyle} />
       <input type="text" placeholder={t("repoUrl") + " (https://github.com/...)"} value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} style={inputStyle} />
-      <input type="text" placeholder={t("vercelUrl") + " (https://....vercel.app)"} value={vercelUrl} onChange={(e) => setVercelUrl(e.target.value)} style={inputStyle} />
-      <div style={{ display: "flex", gap: 8 }}>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...inputStyle, cursor: "pointer", flex: 1 }}>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s === "desarrollo" ? t("development") : s === "pausado" ? t("paused") : t("idea")}</option>
-          ))}
-        </select>
-        <select value={environment} onChange={(e) => setEnvironment(e.target.value)} style={{ ...inputStyle, cursor: "pointer", flex: 1 }}>
-          {ENV_OPTIONS.map((e) => (
-            <option key={e} value={e}>{e ? t(`env${e.charAt(0).toUpperCase() + e.slice(1)}`) : `-- ${t("environment")} --`}</option>
-          ))}
-        </select>
+      <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+        {STATUS_OPTIONS.map((s) => (
+          <option key={s} value={s}>{s === "desarrollo" ? t("development") : s === "pausado" ? t("paused") : t("idea")}</option>
+        ))}
+      </select>
+      {/* Test environment */}
+      <div style={{
+        padding: "10px 12px", borderRadius: 6,
+        border: `1px solid ${DEPLOY_COLORS.test}30`,
+        background: `${DEPLOY_COLORS.test}08`,
+      }}>
+        <div style={{
+          fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: DEPLOY_COLORS.test,
+          textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8, fontWeight: 700,
+        }}>
+          ● {t("testEnv")}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input type="text" placeholder={t("testUrl") + " (https://...)"} value={testUrl} onChange={(e) => setTestUrl(e.target.value)} style={{ ...inputStyle, flex: 2 }} />
+          <input type="text" placeholder={t("testBranch") + " (test/...)"} value={testBranch} onChange={(e) => setTestBranch(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+        </div>
+      </div>
+      {/* Prod environment */}
+      <div style={{
+        padding: "10px 12px", borderRadius: 6,
+        border: `1px solid ${DEPLOY_COLORS.prod}30`,
+        background: `${DEPLOY_COLORS.prod}08`,
+      }}>
+        <div style={{
+          fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: DEPLOY_COLORS.prod,
+          textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8, fontWeight: 700,
+        }}>
+          ● {t("prodEnv")}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input type="text" placeholder={t("prodUrl") + " (https://...)"} value={prodUrl} onChange={(e) => setProdUrl(e.target.value)} style={{ ...inputStyle, flex: 2 }} />
+          <input type="text" placeholder={t("prodBranch") + " (main)"} value={prodBranch} onChange={(e) => setProdBranch(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+        </div>
       </div>
       <div>
         <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.1em" }}>
@@ -1130,7 +1201,13 @@ export default function MissionControl() {
   const API_BASE = "https://missioncontrol-coral.vercel.app";
 
   const buildExportPrompt = () => {
-    const ids = projects.map(p => `${p.id} (${p.name})`).join("\n");
+    const projectList = projects.map(p => {
+      const envs = [];
+      if (p.testUrl) envs.push(`test: ${p.testUrl}${p.testBranch ? ` (${p.testBranch})` : ""}`);
+      if (p.prodUrl) envs.push(`prod: ${p.prodUrl}${p.prodBranch ? ` (${p.prodBranch})` : ""}`);
+      const envStr = envs.length ? ` — ${envs.join(" | ")}` : "";
+      return `${p.id} (${p.name})${envStr}`;
+    }).join("\n");
     return `Antes de terminar, necesito que exportes el progreso de esta sesión a Mission Control.
 
 Identifica el projectId correcto de la lista de abajo según el proyecto en el que hemos trabajado. Si no existe, créalo primero con POST /api/projects.
@@ -1166,6 +1243,7 @@ curl -X POST ${API_BASE}/api/import \\
 - Estado actual (qué funciona, qué está a medias)
 - Decisiones importantes
 - Pendiente (próximos pasos concretos)
+- Despliegues: indicar URL y rama de test y producción
 - URLs (deploy, repo, recursos)
 
 Primero comprueba si ya existe:
@@ -1183,14 +1261,21 @@ curl -X POST ${API_BASE}/api/files \\
   -H "x-api-key: ${API_KEY}" \\
   -d '{"projectId": "PROJECT_ID", "name": "CONTEXT.md", "content": "..."}'
 
-Si el proyecto no existe aún en Mission Control, créalo primero:
+Si el proyecto no existe aún en Mission Control, créalo primero.
+Cada proyecto tiene dos entornos: test y prod. Incluye las URLs y ramas correspondientes:
 curl -X POST ${API_BASE}/api/projects \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
-  -d '{"name": "Nombre", "description": "Descripción", "status": "desarrollo", "color": "#3B82F6"}'
+  -d '{"name": "Nombre", "description": "Descripción", "status": "desarrollo", "color": "#3B82F6", "testUrl": "https://...", "testBranch": "test/...", "prodUrl": "https://...", "prodBranch": "main"}'
 
-Project IDs disponibles:
-${ids}`;
+Si el proyecto ya existe y han cambiado las URLs de despliegue, actualízalo:
+curl -X PUT ${API_BASE}/api/projects/PROJECT_ID \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${API_KEY}" \\
+  -d '{"testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
+
+Project IDs disponibles (con sus entornos actuales):
+${projectList}`;
   };
 
   const handleCopyPrompt = () => {
@@ -1410,7 +1495,7 @@ ${ids}`;
             {view === "detail" && selectedProject && (
               <>
                 <StatusDot status={selectedProject.status} color={selectedProject.color} t={t} />
-                <EnvBadge environment={selectedProject.environment} t={t} />
+                <DeploymentBadges project={selectedProject} t={t} />
                 <ProjectLinks project={selectedProject} />
               </>
             )}
@@ -1658,6 +1743,118 @@ ${ids}`;
               {selectedProject.techStack && (
                 <div style={{ marginBottom: 16 }}>
                   <TechStackBadges techStack={selectedProject.techStack} />
+                </div>
+              )}
+
+              {/* Deployments section */}
+              {(selectedProject.testUrl || selectedProject.prodUrl) && (
+                <div style={{
+                  display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+                  marginBottom: 20,
+                }}>
+                  {/* TEST block */}
+                  <div style={{
+                    padding: "14px 16px", borderRadius: 8,
+                    border: `1px solid ${selectedProject.testUrl ? DEPLOY_COLORS.test + "40" : "var(--border-primary)"}`,
+                    background: selectedProject.testUrl ? DEPLOY_COLORS.test + "08" : "var(--bg-inset)",
+                  }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
+                    }}>
+                      <span style={{
+                        width: 7, height: 7, borderRadius: "50%",
+                        background: selectedProject.testUrl ? DEPLOY_COLORS.test : DEPLOY_COLORS.none,
+                        boxShadow: selectedProject.testUrl ? `0 0 8px ${DEPLOY_COLORS.test}60` : "none",
+                        animation: selectedProject.testUrl ? "pulse 2s ease-in-out infinite" : "none",
+                      }} />
+                      <span style={{
+                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700, letterSpacing: "0.1em",
+                        color: selectedProject.testUrl ? DEPLOY_COLORS.test : "var(--text-muted)",
+                        textTransform: "uppercase",
+                      }}>
+                        {t("testEnv")}
+                      </span>
+                    </div>
+                    {selectedProject.testUrl ? (
+                      <>
+                        <a href={selectedProject.testUrl} target="_blank" rel="noopener noreferrer"
+                          style={{
+                            display: "block", fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                            color: DEPLOY_COLORS.test, textDecoration: "none", wordBreak: "break-all",
+                            marginBottom: 6, opacity: 0.9,
+                          }}
+                        >
+                          {selectedProject.testUrl.replace(/^https?:\/\//, "")}
+                        </a>
+                        {selectedProject.testBranch && (
+                          <span style={{
+                            fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                            color: "var(--text-muted)", background: "var(--bg-inset)",
+                            padding: "2px 6px", borderRadius: 3,
+                          }}>
+                            ⎇ {selectedProject.testBranch}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {t("notDeployed")}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* PROD block */}
+                  <div style={{
+                    padding: "14px 16px", borderRadius: 8,
+                    border: `1px solid ${selectedProject.prodUrl ? DEPLOY_COLORS.prod + "40" : "var(--border-primary)"}`,
+                    background: selectedProject.prodUrl ? DEPLOY_COLORS.prod + "08" : "var(--bg-inset)",
+                  }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
+                    }}>
+                      <span style={{
+                        width: 7, height: 7, borderRadius: "50%",
+                        background: selectedProject.prodUrl ? DEPLOY_COLORS.prod : DEPLOY_COLORS.none,
+                        boxShadow: selectedProject.prodUrl ? `0 0 8px ${DEPLOY_COLORS.prod}60` : "none",
+                        animation: selectedProject.prodUrl ? "pulse 2s ease-in-out infinite" : "none",
+                      }} />
+                      <span style={{
+                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700, letterSpacing: "0.1em",
+                        color: selectedProject.prodUrl ? DEPLOY_COLORS.prod : "var(--text-muted)",
+                        textTransform: "uppercase",
+                      }}>
+                        {t("prodEnv")}
+                      </span>
+                    </div>
+                    {selectedProject.prodUrl ? (
+                      <>
+                        <a href={selectedProject.prodUrl} target="_blank" rel="noopener noreferrer"
+                          style={{
+                            display: "block", fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                            color: DEPLOY_COLORS.prod, textDecoration: "none", wordBreak: "break-all",
+                            marginBottom: 6, opacity: 0.9,
+                          }}
+                        >
+                          {selectedProject.prodUrl.replace(/^https?:\/\//, "")}
+                        </a>
+                        {selectedProject.prodBranch && (
+                          <span style={{
+                            fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                            color: "var(--text-muted)", background: "var(--bg-inset)",
+                            padding: "2px 6px", borderRadius: 3,
+                          }}>
+                            ⎇ {selectedProject.prodBranch}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {t("notDeployed")}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 
