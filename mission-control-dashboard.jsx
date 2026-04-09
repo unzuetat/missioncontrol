@@ -1208,13 +1208,36 @@ export default function MissionControl() {
       const envStr = envs.length ? ` — ${envs.join(" | ")}` : "";
       return `${p.id} (${p.name})${envStr}`;
     }).join("\n");
-    return `Antes de terminar, necesito que exportes el progreso de esta sesión a Mission Control.
+    return `Exportar sesión a Mission Control
 
-Identifica el projectId correcto de la lista de abajo según el proyecto en el que hemos trabajado. Si no existe, créalo primero con POST /api/projects.
+Identifica el projectId correcto de la lista de abajo según el proyecto en el que hemos trabajado. Si no estás seguro de cuál es, pregúntame antes de continuar.
 
-Haz DOS cosas:
+Haz TRES cosas, en este orden:
 
-1. CRUMBS — genera JSON con las actividades de la sesión:
+---
+1. PROYECTO — Asegura que el proyecto tiene URLs actualizadas
+
+Comprueba si las URLs de test/prod del proyecto coinciden con las actuales de esta sesión. Si no coinciden o faltan, actualízalas:
+
+curl -X PUT ${API_BASE}/api/projects/PROJECT_ID \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${API_KEY}" \\
+  -d '{"testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
+
+Si el proyecto no existe en la lista, pregúntame nombre, descripción y color antes de crearlo:
+
+curl -X POST ${API_BASE}/api/projects \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${API_KEY}" \\
+  -d '{"name": "Nombre", "description": "Descripción", "status": "desarrollo", "color": "#3B82F6", "testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
+
+Esto es obligatorio en cada export. No saltar este paso.
+
+---
+2. CRUMBS — Registra las actividades de la sesión
+
+Genera JSON con las actividades significativas:
+
 [
   {
     "title": "Descripción corta (max 10 palabras)",
@@ -1226,56 +1249,53 @@ Haz DOS cosas:
 
 Reglas:
 - source: "claude-code" si estamos en Claude Code, "claude-web" si en Claude Web
-- timestamp: fecha/hora real de cuando se hizo
+- timestamp: fecha/hora real de cuando se hizo. Si no conoces la hora exacta, usa mediodía (12:00:00) de la fecha actual
 - Un objeto por bloque de trabajo significativo, no uno por commit
 - El body debe dar contexto suficiente para retomar
 
-Envíalo con:
 curl -X POST ${API_BASE}/api/import \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
   -d '{"projectId": "PROJECT_ID", "crumbs": [...]}'
 
-2. CONTEXT.md — genera una foto completa del estado del proyecto:
+---
+3. CONTEXT.md — Foto completa del estado del proyecto
+
+Genera un documento con todas estas secciones:
 - Qué es (1-2 frases)
 - Tech stack
 - Arquitectura (estructura de archivos clave)
-- Estado actual (qué funciona, qué está a medias)
+- Estado actual — funciona
+- Estado actual — pendiente (próximos pasos concretos)
 - Decisiones importantes
-- Pendiente (próximos pasos concretos)
-- Despliegues: indicar URL y rama de test y producción
-- URLs (deploy, repo, recursos)
+- Despliegues (tabla con entorno, URL y rama para test y prod)
+- URLs (repo, recursos externos)
 
 Primero comprueba si ya existe:
-curl -s ${API_BASE}/api/files?projectId=PROJECT_ID
+
+curl -s "${API_BASE}/api/files?projectId=PROJECT_ID" \\
+  -H "x-api-key: ${API_KEY}"
 
 Si existe, actualízalo (PUT con fileId):
+
 curl -X PUT ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
-  -d '{"fileId": "FILE_ID_AQUI", "content": "..."}'
+  -d '{"fileId": "FILE_ID", "content": "..."}'
 
 Si no existe, créalo:
+
 curl -X POST ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
   -d '{"projectId": "PROJECT_ID", "name": "CONTEXT.md", "content": "..."}'
 
-Si el proyecto no existe aún en Mission Control, créalo primero.
-Cada proyecto tiene dos entornos: test y prod. Incluye las URLs y ramas correspondientes:
-curl -X POST ${API_BASE}/api/projects \\
-  -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
-  -d '{"name": "Nombre", "description": "Descripción", "status": "desarrollo", "color": "#3B82F6", "testUrl": "https://...", "testBranch": "test/...", "prodUrl": "https://...", "prodBranch": "main"}'
-
-Si el proyecto ya existe y han cambiado las URLs de despliegue, actualízalo:
-curl -X PUT ${API_BASE}/api/projects/PROJECT_ID \\
-  -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
-  -d '{"testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
-
+---
 Project IDs disponibles (con sus entornos actuales):
-${projectList}`;
+
+${projectList}
+
+Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.`;
   };
 
   const handleCopyPrompt = () => {
