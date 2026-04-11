@@ -265,46 +265,35 @@ function ProjectCard({ project, onClick, isSelected, t, lang }) {
           transition: "opacity 0.3s",
         }}
       />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'Space Grotesk', sans-serif" }}>
-              {project.name}
-            </span>
-            <ProjectLinks project={project} />
-          </div>
-          <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
-            {project.description}
-          </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {project.name}
+          </span>
+          <ProjectLinks project={project} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <StatusDot status={project.status} color={project.color} t={t} />
-          <DeploymentBadges project={project} t={t} />
-        </div>
+        <DeploymentBadges project={project} t={t} />
       </div>
-      <TechStackBadges techStack={project.techStack} />
 
       {lc && (
         <div
           style={{
-            padding: "10px 12px",
+            padding: "8px 12px",
             borderRadius: 6,
             background: "var(--bg-inset)",
             borderLeft: `2px solid ${project.color}60`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
           }}
         >
-          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 6, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            {t("whereYouLeft")}
-          </div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.4, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {lc.title}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <SourceBadge source={lc.source} compact />
-            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
-              {timeAgo(lc.timestamp, lang)}
-            </span>
-          </div>
+          <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>
+            {timeAgo(lc.timestamp, lang)}
+          </span>
         </div>
       )}
     </button>
@@ -817,7 +806,7 @@ function ProjectForm({ project, onSave, onCancel, t }) {
           })}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         {COLOR_PALETTE.map((c) => (
           <button
             key={c}
@@ -831,6 +820,25 @@ function ProjectForm({ project, onSave, onCancel, t }) {
             }}
           />
         ))}
+        <label
+          title={t("customColor") || "Color personalizado"}
+          style={{
+            position: "relative", cursor: "pointer",
+            width: 24, height: 24, borderRadius: 6,
+            background: COLOR_PALETTE.includes(color) ? "var(--bg-inset)" : color,
+            border: !COLOR_PALETTE.includes(color) ? "2px solid var(--text-primary)" : "1px dashed var(--border-primary)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, color: "var(--text-muted)", overflow: "hidden",
+          }}
+        >
+          {COLOR_PALETTE.includes(color) && "+"}
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
+          />
+        </label>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button
