@@ -1579,9 +1579,9 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   letterSpacing: "0.05em", transition: "all 0.3s",
                   whiteSpace: "nowrap",
                 }}
-                title={lang === "es" ? "Copiar prompt de exportación" : "Copy export prompt"}
+                title={lang === "es" ? "Exportar sesión de Claude a Mission Control" : "Export Claude session to Mission Control"}
               >
-                {copied ? "✓" : (lang === "es" ? "EXPORT PROMPT" : "EXPORT PROMPT")}
+                {copied ? "✓" : "Claude → MissionControl"}
               </button>
               <button
                 onClick={() => { const next = lang === "es" ? "en" : "es"; setLang(next); }}
