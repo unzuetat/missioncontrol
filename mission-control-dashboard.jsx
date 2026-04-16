@@ -1220,7 +1220,7 @@ export default function MissionControl() {
 
 Identifica el projectId correcto de la lista de abajo según el proyecto en el que hemos trabajado. Si no estás seguro de cuál es, pregúntame antes de continuar.
 
-Haz TRES cosas, en este orden:
+Haz CUATRO cosas, en este orden:
 
 ---
 1. PROYECTO — Asegura que el proyecto tiene URLs actualizadas
@@ -1297,6 +1297,26 @@ curl -X POST ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
   -d '{"projectId": "PROJECT_ID", "name": "CONTEXT.md", "content": "..."}'
+
+---
+4. DEPLOY_STATUS.md — Diferencias entre test y prod
+
+Si el proyecto tiene ramas test y prod distintas, analiza qué hay en test que no está en prod:
+
+\`\`\`bash
+git log <prodBranch>..<testBranch> --oneline
+\`\`\`
+
+Genera un documento DEPLOY_STATUS.md con:
+- Fecha del análisis
+- Funcionalidades en test pendientes de desplegar a prod (resumen legible, no commits raw)
+- Riesgos o dependencias si las hay
+- Si test y prod están sincronizadas, indicarlo
+
+Guárdalo como archivo del proyecto (mismo flujo que CONTEXT.md: comprobar si existe, PUT o POST).
+El nombre del archivo DEBE ser exactamente "DEPLOY_STATUS.md".
+
+Si no hay rama test o test=prod, omite este paso.
 
 ---
 Project IDs disponibles (con sus entornos actuales):
@@ -1892,6 +1912,46 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   </div>
                 </div>
               )}
+
+              {/* Deploy status (test vs prod) */}
+              {(() => {
+                const deployFile = projectFiles.find((f) => f.name === "DEPLOY_STATUS.md");
+                if (!deployFile) return null;
+                const content = deployFile.content || "";
+                const isSynced = content.toLowerCase().includes("sincronizada") || content.toLowerCase().includes("synced") || content.toLowerCase().includes("no hay diferencias");
+                return (
+                  <div style={{
+                    padding: "14px 16px", borderRadius: 8, marginBottom: 16,
+                    border: `1px solid ${isSynced ? "#2D8A4E40" : "#F59E0B40"}`,
+                    background: isSynced ? "#2D8A4E08" : "#F59E0B08",
+                  }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
+                    }}>
+                      <span style={{
+                        width: 7, height: 7, borderRadius: "50%",
+                        background: isSynced ? "#2D8A4E" : "#F59E0B",
+                        boxShadow: `0 0 8px ${isSynced ? "#2D8A4E60" : "#F59E0B60"}`,
+                      }} />
+                      <span style={{
+                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700, letterSpacing: "0.1em",
+                        color: isSynced ? "#2D8A4E" : "#F59E0B",
+                        textTransform: "uppercase",
+                      }}>
+                        {isSynced ? "Test = Prod" : "Test ≠ Prod — pendiente de deploy"}
+                      </span>
+                    </div>
+                    <pre style={{
+                      fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                      color: "var(--text-secondary)", lineHeight: 1.6,
+                      whiteSpace: "pre-wrap", margin: 0, maxHeight: 200, overflow: "auto",
+                    }}>
+                      {content}
+                    </pre>
+                  </div>
+                );
+              })()}
 
               {/* Edit/Delete buttons */}
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
