@@ -1403,7 +1403,14 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
       alert(t("noContext"));
       return;
     }
-    navigator.clipboard.writeText(contextFile.content || "");
+    const repo = selectedProject?.repoUrl || "";
+    const projectName = selectedProject?.name || "proyecto";
+    let gitBlock = "";
+    if (repo) {
+      const repoName = repo.split("/").pop()?.replace(/\.git$/, "") || projectName;
+      gitBlock = `\n\n---\n## Setup: clone o pull\n\nAntes de empezar, asegura que tienes el código actualizado. Ejecuta esto:\n\n\`\`\`bash\nif [ -d "${repoName}" ]; then\n  cd ${repoName} && git pull origin main\nelse\n  git clone ${repo}.git && cd ${repoName}\nfi\n\`\`\`\n\nSi el directorio ya existe, hace pull. Si no, hace clone.\n---\n`;
+    }
+    navigator.clipboard.writeText(contextFile.content + gitBlock);
     setContextCopied(true);
     setTimeout(() => setContextCopied(false), 2000);
   };
