@@ -1653,7 +1653,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
         {/* GRID VIEW */}
         {!loading && view === "grid" && (
           <>
-          <DailyPulseBanner apiBase={API_BASE} apiKey={API_KEY} />
+          <DailyPulseBanner apiBase={API_BASE} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 32, alignItems: "start" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -1801,7 +1801,6 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
               <ProjectBriefingSection
                 projectId={selectedProject.id}
                 apiBase={API_BASE}
-                apiKey={API_KEY}
               />
 
               {/* Tech stack */}
