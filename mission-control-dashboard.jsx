@@ -1205,7 +1205,6 @@ export default function MissionControl() {
   const [contextCopied, setContextCopied] = useState(false);
   const detailRef = useRef(null);
 
-  const API_KEY = "a31e233f73cd69d68ff77e7b55769accf6ed5eb3f362c5e76a24f3d86ce189f3";
   const API_BASE = "https://missioncontrol-coral.vercel.app";
 
   const buildExportPrompt = () => {
@@ -1229,14 +1228,14 @@ Comprueba si las URLs de test/prod del proyecto coinciden con las actuales de es
 
 curl -X PUT ${API_BASE}/api/projects/PROJECT_ID \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
 
 Si el proyecto no existe en la lista, pregúntame nombre, descripción y color antes de crearlo:
 
 curl -X POST ${API_BASE}/api/projects \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"name": "Nombre", "description": "Descripción", "status": "desarrollo", "color": "#3B82F6", "testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
 
 Esto es obligatorio en cada export. No saltar este paso.
@@ -1263,7 +1262,7 @@ Reglas:
 
 curl -X POST ${API_BASE}/api/import \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"projectId": "PROJECT_ID", "crumbs": [...]}'
 
 ---
@@ -1282,20 +1281,20 @@ Genera un documento con todas estas secciones:
 Primero comprueba si ya existe:
 
 curl -s "${API_BASE}/api/files?projectId=PROJECT_ID" \\
-  -H "x-api-key: ${API_KEY}"
+  -H "x-api-key: $MC_API_KEY"
 
 Si existe, actualízalo (PUT con fileId):
 
 curl -X PUT ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"fileId": "FILE_ID", "content": "..."}'
 
 Si no existe, créalo:
 
 curl -X POST ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"projectId": "PROJECT_ID", "name": "CONTEXT.md", "content": "..."}'
 
 ---
