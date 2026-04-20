@@ -7,8 +7,6 @@ import { checkAuth, corsHeaders } from '../_lib/auth.js';
 import {
   getAllProjects,
   getProjectCrumbs,
-  getKV,
-  setKV,
   getKv,
 } from '../_lib/kv.js';
 import {
@@ -20,11 +18,14 @@ import {
   recordCost,
   getMonthlyBudget,
   formatRetry,
+  pushBriefing,
+  getLatestBriefing,
   LIMITS,
 } from '../_lib/briefing-helpers.js';
 
 const MODEL = 'claude-sonnet-4-6';
-const CACHE_KEY = 'briefing:daily:latest';
+const LIST_KEY = 'briefing:daily:list';
+const LEGACY_KEY = 'briefing:daily:latest';
 const CRUMBS_PER_PROJECT = 5;   // solo lo más reciente
 const MAX_BODY_CHARS = 200;     // recortar bodies largos para mantenerlo ligero
 
@@ -34,7 +35,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const cached = await getKV(CACHE_KEY);
+      const cached = await getLatestBriefing(getKv, LIST_KEY, LEGACY_KEY);
       if (!cached) return res.status(404).json({ error: 'no_briefing_yet' });
       return res.status(200).json(cached);
     }
@@ -90,7 +91,7 @@ export default async function handler(req, res) {
         model: MODEL,
       };
       await Promise.all([
-        setKV(CACHE_KEY, briefing),
+        pushBriefing(getKv, LIST_KEY, briefing),
         markCooldown(getKv, 'daily', null, LIMITS.dailyCooldownSeconds),
         recordCost(getKv, usage.costUsd),
       ]);

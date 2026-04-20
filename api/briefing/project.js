@@ -8,8 +8,6 @@ import {
   getProjectById,
   getProjectCrumbs,
   getProjectFiles,
-  getKV,
-  setKV,
   getKv,
 } from '../_lib/kv.js';
 import {
@@ -21,6 +19,8 @@ import {
   recordCost,
   getMonthlyBudget,
   formatRetry,
+  pushBriefing,
+  getLatestBriefing,
   LIMITS,
 } from '../_lib/briefing-helpers.js';
 
@@ -28,7 +28,8 @@ const MODEL = 'claude-opus-4-7';
 const CRUMBS_LIMIT = 30;         // histórico amplio para el profundo
 const MAX_CONTEXT_CHARS = 8000;  // CONTEXT.md casi entero
 
-const cacheKeyFor = (id) => `briefing:project:${id}:latest`;
+const listKeyFor = (id) => `briefing:project:${id}:list`;
+const legacyKeyFor = (id) => `briefing:project:${id}:latest`;
 
 export default async function handler(req, res) {
   Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const projectId = req.query?.projectId || new URL(req.url, 'http://x').searchParams.get('projectId');
       if (!projectId) return res.status(400).json({ error: 'missing_projectId' });
-      const cached = await getKV(cacheKeyFor(projectId));
+      const cached = await getLatestBriefing(getKv, listKeyFor(projectId), legacyKeyFor(projectId));
       if (!cached) return res.status(404).json({ error: 'no_briefing_yet' });
       return res.status(200).json(cached);
     }
@@ -106,7 +107,7 @@ export default async function handler(req, res) {
         model: MODEL,
       };
       await Promise.all([
-        setKV(cacheKeyFor(projectId), briefing),
+        pushBriefing(getKv, listKeyFor(projectId), briefing),
         markCooldown(getKv, 'project', projectId, LIMITS.projectCooldownSeconds),
         recordCost(getKv, usage.costUsd),
       ]);

@@ -112,6 +112,60 @@ export async function isMonthlyCapReached(getKv) {
   return budget.spentUsd >= budget.capUsd;
 }
 
+// ---------------------------------------------------------------------------
+// Historial de briefings (lista Redis con los últimos N)
+
+export const HISTORY_LIMIT = 3;
+
+/**
+ * Inserta un briefing en el head de la lista y trunca a maxItems.
+ * Devuelve la longitud resultante.
+ */
+export async function pushBriefing(getKv, listKey, briefing, maxItems = HISTORY_LIMIT) {
+  const client = await getKv();
+  const json = JSON.stringify(briefing);
+  await client.lPush(listKey, json);
+  await client.lTrim(listKey, 0, maxItems - 1);
+  return client.lLen(listKey);
+}
+
+/**
+ * Devuelve el briefing más reciente (o null si lista vacía).
+ * Si la lista está vacía pero existe legacy key (latest), la migra a lista.
+ */
+export async function getLatestBriefing(getKv, listKey, legacyKey) {
+  const client = await getKv();
+  const raw = await client.lIndex(listKey, 0);
+  if (raw) return safeParse(raw);
+
+  if (legacyKey) {
+    const legacy = await client.get(legacyKey);
+    if (legacy) {
+      const parsed = safeParse(legacy);
+      if (parsed) {
+        await client.lPush(listKey, legacy);
+        await client.lTrim(listKey, 0, HISTORY_LIMIT - 1);
+        await client.del(legacyKey);
+        return parsed;
+      }
+    }
+  }
+  return null;
+}
+
+/** Devuelve array de hasta `limit` briefings (más reciente primero). */
+export async function getBriefingHistory(getKv, listKey, limit = HISTORY_LIMIT) {
+  const client = await getKv();
+  const items = await client.lRange(listKey, 0, limit - 1);
+  return items.map(safeParse).filter(Boolean);
+}
+
+function safeParse(raw) {
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+// ---------------------------------------------------------------------------
+
 export async function recordCost(getKv, costUsd) {
   const client = await getKv();
   const mKey = monthKey();
