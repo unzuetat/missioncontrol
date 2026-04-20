@@ -6,6 +6,7 @@ import { Markdown, formatRelative } from './briefing-utils.jsx';
 
 export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey = '' }) {
   const [items, setItems] = useState([]);
+  const [spent30d, setSpent30d] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
@@ -18,6 +19,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
   useEffect(() => {
     if (!projectId) return;
     loadHistory();
+    loadSpending();
   }, [projectId]);
 
   async function loadHistory() {
@@ -34,6 +36,22 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSpending() {
+    try {
+      const res = await fetch(
+        `${apiBase}/api/briefing/spending?projectId=${encodeURIComponent(projectId)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setSpent30d({
+        total: data.last30d?.totalUsd ?? 0,
+        count: data.last30d?.count ?? 0,
+      });
+    } catch {
+      // silent: el badge es decorativo
     }
   }
 
@@ -54,6 +72,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
       }
       const fresh = await res.json();
       setItems((prev) => [fresh, ...prev].slice(0, 3));
+      loadSpending(); // refresca badge
     } catch (e) {
       setError(e.message);
     } finally {
@@ -74,7 +93,14 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     <section className="project-briefing">
       <header className="project-briefing-header">
         <div>
-          <h3>Chief of Staff</h3>
+          <h3>
+            Chief of Staff
+            {spent30d && spent30d.count > 0 && (
+              <span className="project-briefing-badge" title="Gasto en este proyecto en los últimos 30 días">
+                ${spent30d.total} · {spent30d.count} en 30d
+              </span>
+            )}
+          </h3>
           {briefing && (
             <p className="project-briefing-meta">
               {formatRelative(briefing.generatedAt)} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · ${briefing.usage.costUsd} · {briefing.model}

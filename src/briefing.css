@@ -369,3 +369,124 @@
 }
 
 .briefing-card-body strong { font-weight: 500; }
+
+/* ========================================================================= */
+/* Sección de gastos (en la pestaña Briefings)                                */
+/* ========================================================================= */
+
+.spending-section {
+  margin-bottom: 32px;
+}
+
+.spending-filter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.spending-tab {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.12));
+  color: var(--text-secondary, #6b6b6b);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.03em;
+  transition: all 0.15s;
+}
+
+.spending-tab:hover {
+  background: var(--color-background-secondary, #f8f8f5);
+}
+
+.spending-tab.active {
+  background: #14B8A618;
+  border-color: #14B8A635;
+  color: #14B8A6;
+}
+
+.spending-select {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.12));
+  background: transparent;
+  color: var(--text-secondary, #6b6b6b);
+  font-family: var(--font-mono, monospace);
+  cursor: pointer;
+}
+
+.spending-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.spending-card {
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.1));
+  background: var(--color-background-primary, #fff);
+}
+
+.spending-card-cap {
+  border-color: #14B8A635;
+}
+
+.spending-card-label {
+  font-size: 11px;
+  color: var(--text-secondary, #6b6b6b);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.spending-card-total {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.spending-card-meta {
+  font-size: 12px;
+  color: var(--text-secondary, #6b6b6b);
+  font-family: var(--font-mono, monospace);
+}
+
+.spending-card-breakdown {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.06));
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-secondary, #6b6b6b);
+  font-family: var(--font-mono, monospace);
+}
+
+.briefings-heading {
+  margin: 24px 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.project-briefing-badge {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #14B8A618;
+  border: 0.5px solid #14B8A635;
+  color: #14B8A6;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono, monospace);
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}

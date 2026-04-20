@@ -166,20 +166,101 @@ function safeParse(raw) {
 
 // ---------------------------------------------------------------------------
 
-export async function recordCost(getKv, costUsd) {
+/**
+ * Registra el coste de una generación.
+ * entry = { kind, projectId?, costUsd, generatedAt, model, durationMs? }
+ *
+ * Actualiza:
+ * - Contadores mensuales (YYYYMM): costo total + número de generaciones.
+ * - Sorted set global de entries, scored por timestamp ms, para queries
+ *   por ventana de tiempo (7d / 30d) con filtro opcional por proyecto.
+ *
+ * Purga automáticamente entries > 90 días del sorted set.
+ */
+export async function recordCost(getKv, entry) {
   const client = await getKv();
   const mKey = monthKey();
   const cKey = COST_PREFIX + mKey;
   const nKey = COUNT_PREFIX + mKey;
-  const [spent] = await Promise.all([
-    client.incrByFloat(cKey, costUsd),
-    client.incr(nKey),
-  ]);
-  // TTL 90 días (2 meses de margen tras el mes corriente)
+  const ts = entry.generatedAt ? new Date(entry.generatedAt).getTime() : Date.now();
+  const entryValue = JSON.stringify({
+    kind: entry.kind,
+    projectId: entry.projectId || null,
+    costUsd: Number(entry.costUsd) || 0,
+    generatedAt: entry.generatedAt || new Date(ts).toISOString(),
+    model: entry.model || null,
+    durationMs: entry.durationMs || null,
+  });
+
   const TTL_SECONDS = 90 * 24 * 60 * 60;
+  const cutoff = Date.now() - TTL_SECONDS * 1000;
+
+  const [spent] = await Promise.all([
+    client.incrByFloat(cKey, entry.costUsd),
+    client.incr(nKey),
+    client.zAdd(COST_ENTRIES_KEY, { score: ts, value: entryValue }),
+    client.zRemRangeByScore(COST_ENTRIES_KEY, '-inf', cutoff),
+  ]);
+
   await Promise.all([
     client.expire(cKey, TTL_SECONDS),
     client.expire(nKey, TTL_SECONDS),
   ]);
   return Number(spent);
+}
+
+// ---------------------------------------------------------------------------
+// Consulta de spending: ventanas de 7d y 30d + breakdowns
+
+const COST_ENTRIES_KEY = 'briefing:costs:entries';
+
+/**
+ * Devuelve spending agregado. Si projectId viene, todo se restringe a ese
+ * proyecto (daily pulses siguen siendo "todo el portfolio", así que para
+ * filtrado estricto por proyecto solo se cuentan project-briefings).
+ */
+export async function getSpending(getKv, { projectId = null, maxEntries = 100 } = {}) {
+  const client = await getKv();
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+  const raw = await client.zRangeByScore(COST_ENTRIES_KEY, thirtyDaysAgo, now, { REV: true });
+  const entries30d = raw.map(safeParse).filter(Boolean);
+
+  const filtered = projectId
+    ? entries30d.filter((e) => e.kind === 'project' && e.projectId === projectId)
+    : entries30d;
+
+  const aggregate = (items, since) => {
+    const scoped = items.filter((e) => new Date(e.generatedAt).getTime() >= since);
+    let total = 0;
+    const byKind = {};
+    const byProject = {};
+    for (const e of scoped) {
+      total += e.costUsd;
+      byKind[e.kind] = (byKind[e.kind] || 0) + e.costUsd;
+      if (e.projectId) {
+        byProject[e.projectId] = (byProject[e.projectId] || 0) + e.costUsd;
+      }
+    }
+    return {
+      totalUsd: Number(total.toFixed(4)),
+      count: scoped.length,
+      byKind: Object.fromEntries(
+        Object.entries(byKind).map(([k, v]) => [k, Number(v.toFixed(4))])
+      ),
+      byProject: Object.fromEntries(
+        Object.entries(byProject).map(([k, v]) => [k, Number(v.toFixed(4))])
+      ),
+    };
+  };
+
+  return {
+    last7d: aggregate(filtered, sevenDaysAgo),
+    last30d: aggregate(filtered, thirtyDaysAgo),
+    monthly: await getMonthlyBudget(getKv),
+    entries: filtered.slice(0, maxEntries),
+    projectId: projectId || null,
+  };
 }

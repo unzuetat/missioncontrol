@@ -1805,7 +1805,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
 
         {/* BRIEFINGS VIEW */}
         {!loading && view === "briefings" && (
-          <BriefingsView apiBase={API_BASE} t={t} />
+          <BriefingsView apiBase={API_BASE} t={t} projects={projects} />
         )}
 
         {/* DETAIL VIEW */}

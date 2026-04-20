@@ -93,7 +93,13 @@ export default async function handler(req, res) {
       await Promise.all([
         pushBriefing(getKv, LIST_KEY, briefing),
         markCooldown(getKv, 'daily', null, LIMITS.dailyCooldownSeconds),
-        recordCost(getKv, usage.costUsd),
+        recordCost(getKv, {
+          kind: 'daily',
+          costUsd: usage.costUsd,
+          generatedAt: briefing.generatedAt,
+          model: MODEL,
+          durationMs: briefing.durationMs,
+        }),
       ]);
 
       return res.status(200).json(briefing);
