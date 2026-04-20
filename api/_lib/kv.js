@@ -53,9 +53,10 @@ export async function getAllProjects() {
   return projects;
 }
 
-export async function getProjectCrumbs(projectId) {
+export async function getProjectCrumbs(projectId, limit) {
   const kv = await getClient();
-  const crumbIds = await kv.zRange(keys.projectCrumbs(projectId), 0, -1, { REV: true });
+  const stop = typeof limit === 'number' && limit > 0 ? limit - 1 : -1;
+  const crumbIds = await kv.zRange(keys.projectCrumbs(projectId), 0, stop, { REV: true });
   if (!crumbIds || crumbIds.length === 0) return [];
 
   const crumbs = [];
@@ -66,6 +67,26 @@ export async function getProjectCrumbs(projectId) {
     }
   }
   return crumbs;
+}
+
+export async function getProjectById(projectId) {
+  const kv = await getClient();
+  const data = await kv.hGetAll(keys.project(projectId));
+  if (!data || Object.keys(data).length === 0) return null;
+  return { id: projectId, ...data };
+}
+
+export async function getKV(key) {
+  const kv = await getClient();
+  const raw = await kv.get(key);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return raw; }
+}
+
+export async function setKV(key, value) {
+  const kv = await getClient();
+  const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+  await kv.set(key, serialized);
 }
 
 export async function getRecentCrumbs(limit = 20) {
