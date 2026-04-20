@@ -1574,9 +1574,9 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   style={{
                     all: "unset", cursor: "pointer", fontSize: 11,
                     padding: "4px 8px", borderRadius: 6,
-                    border: `1px solid ${contextCopied ? "#2D8A4E" : "var(--border-primary)"}`,
+                    border: "1px solid #2D8A4E",
                     background: contextCopied ? "#2D8A4E" : "var(--bg-card)",
-                    color: contextCopied ? "#fff" : "var(--text-tertiary)",
+                    color: contextCopied ? "#fff" : "#2D8A4E",
                     fontFamily: "'JetBrains Mono', monospace",
                     letterSpacing: "0.05em", transition: "all 0.3s",
                     whiteSpace: "nowrap",
@@ -1591,9 +1591,9 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 style={{
                   all: "unset", cursor: "pointer", fontSize: 11,
                   padding: "4px 8px", borderRadius: 6,
-                  border: `1px solid ${copied ? "#2D8A4E" : "var(--border-primary)"}`,
+                  border: "1px solid #2D8A4E",
                   background: copied ? "#2D8A4E" : "var(--bg-card)",
-                  color: copied ? "#fff" : "var(--text-tertiary)",
+                  color: copied ? "#fff" : "#2D8A4E",
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: "0.05em", transition: "all 0.3s",
                   whiteSpace: "nowrap",
