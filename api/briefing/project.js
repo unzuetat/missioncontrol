@@ -10,8 +10,19 @@ import {
   getProjectFiles,
   getKV,
   setKV,
+  getKv,
 } from '../_lib/kv.js';
-import { computeCost, extractMarkdown } from '../_lib/briefing-helpers.js';
+import {
+  computeCost,
+  extractMarkdown,
+  checkCooldown,
+  markCooldown,
+  isMonthlyCapReached,
+  recordCost,
+  getMonthlyBudget,
+  formatRetry,
+  LIMITS,
+} from '../_lib/briefing-helpers.js';
 
 const MODEL = 'claude-opus-4-7';
 const CRUMBS_LIMIT = 30;         // histórico amplio para el profundo
@@ -46,6 +57,24 @@ export default async function handler(req, res) {
       const project = await getProjectById(projectId);
       if (!project) return res.status(404).json({ error: 'project_not_found' });
 
+      if (await isMonthlyCapReached(getKv)) {
+        const budget = await getMonthlyBudget(getKv);
+        return res.status(429).json({
+          error: 'monthly_cap_reached',
+          detail: `Límite mensual de $${budget.capUsd} alcanzado (gastado $${budget.spentUsd} en ${budget.generations} generaciones). Espera al mes ${budget.month} siguiente o sube BRIEFING_MONTHLY_CAP_USD.`,
+          budget,
+        });
+      }
+
+      const cd = await checkCooldown(getKv, 'project', projectId);
+      if (cd.active) {
+        return res.status(429).json({
+          error: 'cooldown_active',
+          detail: `Briefing del proyecto "${project.name}" en cooldown. Reintenta en ${formatRetry(cd.retryAfter)}.`,
+          retryAfter: cd.retryAfter,
+        });
+      }
+
       const startedAt = Date.now();
       const crumbs = await getProjectCrumbs(projectId, CRUMBS_LIMIT);
       const files = await getProjectFiles(projectId);
@@ -76,7 +105,11 @@ export default async function handler(req, res) {
         usage,
         model: MODEL,
       };
-      await setKV(cacheKeyFor(projectId), briefing);
+      await Promise.all([
+        setKV(cacheKeyFor(projectId), briefing),
+        markCooldown(getKv, 'project', projectId, LIMITS.projectCooldownSeconds),
+        recordCost(getKv, usage.costUsd),
+      ]);
 
       return res.status(200).json(briefing);
     }

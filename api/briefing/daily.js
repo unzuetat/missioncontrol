@@ -9,8 +9,19 @@ import {
   getProjectCrumbs,
   getKV,
   setKV,
+  getKv,
 } from '../_lib/kv.js';
-import { computeCost, extractMarkdown } from '../_lib/briefing-helpers.js';
+import {
+  computeCost,
+  extractMarkdown,
+  checkCooldown,
+  markCooldown,
+  isMonthlyCapReached,
+  recordCost,
+  getMonthlyBudget,
+  formatRetry,
+  LIMITS,
+} from '../_lib/briefing-helpers.js';
 
 const MODEL = 'claude-sonnet-4-6';
 const CACHE_KEY = 'briefing:daily:latest';
@@ -34,6 +45,24 @@ export default async function handler(req, res) {
       }
       if (!process.env.ANTHROPIC_API_KEY) {
         return res.status(500).json({ error: 'missing_anthropic_api_key' });
+      }
+
+      if (await isMonthlyCapReached(getKv)) {
+        const budget = await getMonthlyBudget(getKv);
+        return res.status(429).json({
+          error: 'monthly_cap_reached',
+          detail: `Límite mensual de $${budget.capUsd} alcanzado (gastado $${budget.spentUsd} en ${budget.generations} generaciones). Espera al mes ${budget.month} siguiente o sube BRIEFING_MONTHLY_CAP_USD.`,
+          budget,
+        });
+      }
+
+      const cd = await checkCooldown(getKv, 'daily');
+      if (cd.active) {
+        return res.status(429).json({
+          error: 'cooldown_active',
+          detail: `Pulso diario en cooldown. Reintenta en ${formatRetry(cd.retryAfter)}.`,
+          retryAfter: cd.retryAfter,
+        });
       }
 
       const startedAt = Date.now();
@@ -60,7 +89,11 @@ export default async function handler(req, res) {
         usage,
         model: MODEL,
       };
-      await setKV(CACHE_KEY, briefing);
+      await Promise.all([
+        setKV(CACHE_KEY, briefing),
+        markCooldown(getKv, 'daily', null, LIMITS.dailyCooldownSeconds),
+        recordCost(getKv, usage.costUsd),
+      ]);
 
       return res.status(200).json(briefing);
     }
