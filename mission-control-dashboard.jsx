@@ -1207,7 +1207,6 @@ export default function MissionControl() {
   const [contextCopied, setContextCopied] = useState(false);
   const detailRef = useRef(null);
 
-  const API_KEY = "a31e233f73cd69d68ff77e7b55769accf6ed5eb3f362c5e76a24f3d86ce189f3";
   const API_BASE = "https://missioncontrol-coral.vercel.app";
 
   const buildExportPrompt = () => {
@@ -1222,7 +1221,7 @@ export default function MissionControl() {
 
 Identifica el projectId correcto de la lista de abajo según el proyecto en el que hemos trabajado. Si no estás seguro de cuál es, pregúntame antes de continuar.
 
-Haz TRES cosas, en este orden:
+Haz CUATRO cosas, en este orden:
 
 ---
 1. PROYECTO — Asegura que el proyecto tiene URLs actualizadas
@@ -1231,14 +1230,14 @@ Comprueba si las URLs de test/prod del proyecto coinciden con las actuales de es
 
 curl -X PUT ${API_BASE}/api/projects/PROJECT_ID \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
 
 Si el proyecto no existe en la lista, pregúntame nombre, descripción y color antes de crearlo:
 
 curl -X POST ${API_BASE}/api/projects \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"name": "Nombre", "description": "Descripción", "status": "desarrollo", "color": "#3B82F6", "testUrl": "...", "testBranch": "...", "prodUrl": "...", "prodBranch": "..."}'
 
 Esto es obligatorio en cada export. No saltar este paso.
@@ -1265,7 +1264,7 @@ Reglas:
 
 curl -X POST ${API_BASE}/api/import \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"projectId": "PROJECT_ID", "crumbs": [...]}'
 
 ---
@@ -1284,21 +1283,41 @@ Genera un documento con todas estas secciones:
 Primero comprueba si ya existe:
 
 curl -s "${API_BASE}/api/files?projectId=PROJECT_ID" \\
-  -H "x-api-key: ${API_KEY}"
+  -H "x-api-key: $MC_API_KEY"
 
 Si existe, actualízalo (PUT con fileId):
 
 curl -X PUT ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"fileId": "FILE_ID", "content": "..."}'
 
 Si no existe, créalo:
 
 curl -X POST ${API_BASE}/api/files \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${API_KEY}" \\
+  -H "x-api-key: $MC_API_KEY" \\
   -d '{"projectId": "PROJECT_ID", "name": "CONTEXT.md", "content": "..."}'
+
+---
+4. DEPLOY_STATUS.md — Diferencias entre test y prod
+
+Si el proyecto tiene ramas test y prod distintas, analiza qué hay en test que no está en prod:
+
+\`\`\`bash
+git log <prodBranch>..<testBranch> --oneline
+\`\`\`
+
+Genera un documento DEPLOY_STATUS.md con:
+- Fecha del análisis
+- Funcionalidades en test pendientes de desplegar a prod (resumen legible, no commits raw)
+- Riesgos o dependencias si las hay
+- Si test y prod están sincronizadas, indicarlo
+
+Guárdalo como archivo del proyecto (mismo flujo que CONTEXT.md: comprobar si existe, PUT o POST).
+El nombre del archivo DEBE ser exactamente "DEPLOY_STATUS.md".
+
+Si no hay rama test o test=prod, omite este paso.
 
 ---
 Project IDs disponibles (con sus entornos actuales):
@@ -1405,7 +1424,14 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
       alert(t("noContext"));
       return;
     }
-    navigator.clipboard.writeText(contextFile.content || "");
+    const repo = selectedProject?.repoUrl || "";
+    const projectName = selectedProject?.name || "proyecto";
+    let gitBlock = "";
+    if (repo) {
+      const repoName = repo.split("/").pop()?.replace(/\.git$/, "") || projectName;
+      gitBlock = `\n\n---\n## Setup: clone o pull\n\nAntes de empezar, asegura que tienes el código actualizado. Ejecuta esto:\n\n\`\`\`bash\nif [ -d "${repoName}" ]; then\n  cd ${repoName} && git pull origin main\nelse\n  git clone ${repo}.git && cd ${repoName}\nfi\n\`\`\`\n\nSi el directorio ya existe, hace pull. Si no, hace clone.\n---\n`;
+    }
+    navigator.clipboard.writeText(contextFile.content + gitBlock);
     setContextCopied(true);
     setTimeout(() => setContextCopied(false), 2000);
   };
@@ -1550,9 +1576,9 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   style={{
                     all: "unset", cursor: "pointer", fontSize: 11,
                     padding: "4px 8px", borderRadius: 6,
-                    border: `1px solid ${contextCopied ? "#2D8A4E" : "var(--border-primary)"}`,
+                    border: "1px solid #2D8A4E",
                     background: contextCopied ? "#2D8A4E" : "var(--bg-card)",
-                    color: contextCopied ? "#fff" : "var(--text-tertiary)",
+                    color: contextCopied ? "#fff" : "#2D8A4E",
                     fontFamily: "'JetBrains Mono', monospace",
                     letterSpacing: "0.05em", transition: "all 0.3s",
                     whiteSpace: "nowrap",
@@ -1567,16 +1593,16 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 style={{
                   all: "unset", cursor: "pointer", fontSize: 11,
                   padding: "4px 8px", borderRadius: 6,
-                  border: `1px solid ${copied ? "#2D8A4E" : "var(--border-primary)"}`,
+                  border: "1px solid #2D8A4E",
                   background: copied ? "#2D8A4E" : "var(--bg-card)",
-                  color: copied ? "#fff" : "var(--text-tertiary)",
+                  color: copied ? "#fff" : "#2D8A4E",
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: "0.05em", transition: "all 0.3s",
                   whiteSpace: "nowrap",
                 }}
-                title={lang === "es" ? "Copiar prompt de exportación" : "Copy export prompt"}
+                title={lang === "es" ? "Exportar sesión de Claude a Mission Control" : "Export Claude session to Mission Control"}
               >
-                {copied ? "✓" : (lang === "es" ? "EXPORT PROMPT" : "EXPORT PROMPT")}
+                {copied ? "✓" : "Claude → MissionControl"}
               </button>
               <button
                 onClick={() => { const next = lang === "es" ? "en" : "es"; setLang(next); }}
@@ -1896,6 +1922,46 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   </div>
                 </div>
               )}
+
+              {/* Deploy status (test vs prod) */}
+              {(() => {
+                const deployFile = projectFiles.find((f) => f.name === "DEPLOY_STATUS.md");
+                if (!deployFile) return null;
+                const content = deployFile.content || "";
+                const isSynced = content.toLowerCase().includes("sincronizada") || content.toLowerCase().includes("synced") || content.toLowerCase().includes("no hay diferencias");
+                return (
+                  <div style={{
+                    padding: "14px 16px", borderRadius: 8, marginBottom: 16,
+                    border: `1px solid ${isSynced ? "#2D8A4E40" : "#F59E0B40"}`,
+                    background: isSynced ? "#2D8A4E08" : "#F59E0B08",
+                  }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
+                    }}>
+                      <span style={{
+                        width: 7, height: 7, borderRadius: "50%",
+                        background: isSynced ? "#2D8A4E" : "#F59E0B",
+                        boxShadow: `0 0 8px ${isSynced ? "#2D8A4E60" : "#F59E0B60"}`,
+                      }} />
+                      <span style={{
+                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700, letterSpacing: "0.1em",
+                        color: isSynced ? "#2D8A4E" : "#F59E0B",
+                        textTransform: "uppercase",
+                      }}>
+                        {isSynced ? "Test = Prod" : "Test ≠ Prod — pendiente de deploy"}
+                      </span>
+                    </div>
+                    <pre style={{
+                      fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                      color: "var(--text-secondary)", lineHeight: 1.6,
+                      whiteSpace: "pre-wrap", margin: 0, maxHeight: 200, overflow: "auto",
+                    }}>
+                      {content}
+                    </pre>
+                  </div>
+                );
+              })()}
 
               {/* Edit/Delete buttons */}
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
