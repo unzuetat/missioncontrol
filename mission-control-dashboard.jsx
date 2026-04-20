@@ -3,6 +3,7 @@ import { api } from "./src/api.js";
 import { createT } from "./src/i18n.js";
 import DailyPulseBanner from "./src/DailyPulseBanner.jsx";
 import ProjectBriefingSection from "./src/ProjectBriefingSection.jsx";
+import BriefingsView from "./src/BriefingsView.jsx";
 
 const SOURCE_META = {
   github: { label: "GitHub", icon: "⬡", color: "#8B949E" },
@@ -1546,7 +1547,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 color: "var(--text-primary)", transition: "font-size 0.3s",
               }}
             >
-              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : "Mission Control"}
+              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : "Mission Control"}
             </h1>
             {view === "detail" && selectedProject && (
               <>
@@ -1555,7 +1556,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 <ProjectLinks project={selectedProject} />
               </>
             )}
-            {(view === "ideas" || view === "testing") && (
+            {(view === "ideas" || view === "testing" || view === "briefings") && (
               <button
                 onClick={() => setView("grid")}
                 style={{
@@ -1704,6 +1705,20 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   >
                     🧪 {t("allTests")}
                   </button>
+                  <button
+                    onClick={() => setView("briefings")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 11,
+                      padding: "5px 12px", borderRadius: 6,
+                      background: "#14B8A618", border: "1px solid #14B8A635",
+                      color: "#14B8A6", fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = "#14B8A628"; }}
+                    onMouseLeave={(e) => { e.target.style.background = "#14B8A618"; }}
+                  >
+                    📋 {t("allBriefings")}
+                  </button>
                 </div>
               </div>
 
@@ -1786,6 +1801,11 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
             t={t}
             lang={lang}
           />
+        )}
+
+        {/* BRIEFINGS VIEW */}
+        {!loading && view === "briefings" && (
+          <BriefingsView apiBase={API_BASE} t={t} projects={projects} />
         )}
 
         {/* DETAIL VIEW */}

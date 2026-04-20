@@ -1,33 +1,57 @@
 // src/ProjectBriefingSection.jsx — sección dentro de la ficha de cada proyecto
-// Uso: <ProjectBriefingSection projectId={project.id} apiBase={API_BASE} apiKey={API_KEY} />
+// Uso: <ProjectBriefingSection projectId={project.id} apiBase={API_BASE} />
 
 import { useState, useEffect } from 'react';
+import { Markdown, formatRelative } from './briefing-utils.jsx';
 
 export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey = '' }) {
-  const [briefing, setBriefing] = useState(null);
+  const [items, setItems] = useState([]);
+  const [spent30d, setSpent30d] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [expandedIdx, setExpandedIdx] = useState(() => new Set());
+
+  const briefing = items[0] || null;
+  const olderItems = items.slice(1);
 
   useEffect(() => {
     if (!projectId) return;
-    loadLatest();
+    loadHistory();
+    loadSpending();
   }, [projectId]);
 
-  async function loadLatest() {
+  async function loadHistory() {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(
-        `${apiBase}/api/briefing/project?projectId=${encodeURIComponent(projectId)}`
+        `${apiBase}/api/briefing/history?kind=project&projectId=${encodeURIComponent(projectId)}`
       );
-      if (res.status === 404) setBriefing(null);
-      else if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      else setBriefing(await res.json());
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setItems(Array.isArray(data.items) ? data.items : []);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSpending() {
+    try {
+      const res = await fetch(
+        `${apiBase}/api/briefing/spending?projectId=${encodeURIComponent(projectId)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setSpent30d({
+        total: data.last30d?.totalUsd ?? 0,
+        count: data.last30d?.count ?? 0,
+      });
+    } catch {
+      // silent: el badge es decorativo
     }
   }
 
@@ -46,7 +70,9 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || body.error || `HTTP ${res.status}`);
       }
-      setBriefing(await res.json());
+      const fresh = await res.json();
+      setItems((prev) => [fresh, ...prev].slice(0, 3));
+      loadSpending(); // refresca badge
     } catch (e) {
       setError(e.message);
     } finally {
@@ -54,11 +80,27 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     }
   }
 
+  function toggleOlder(idx) {
+    setExpandedIdx((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }
+
   return (
     <section className="project-briefing">
       <header className="project-briefing-header">
         <div>
-          <h3>Chief of Staff</h3>
+          <h3>
+            Chief of Staff
+            {spent30d && spent30d.count > 0 && (
+              <span className="project-briefing-badge" title="Gasto en este proyecto en los últimos 30 días">
+                ${spent30d.total} · {spent30d.count} en 30d
+              </span>
+            )}
+          </h3>
           {briefing && (
             <p className="project-briefing-meta">
               {formatRelative(briefing.generatedAt)} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · ${briefing.usage.costUsd} · {briefing.model}
@@ -92,62 +134,47 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
           <Markdown text={briefing.markdown} />
         </article>
       )}
+
+      {olderItems.length > 0 && (
+        <div className="project-briefing-history">
+          <button
+            className="project-briefing-history-toggle"
+            onClick={() => setShowHistory((v) => !v)}
+          >
+            {showHistory ? 'Ocultar histórico' : `Ver histórico (${olderItems.length})`}
+          </button>
+          {showHistory && (
+            <div className="briefings-list">
+              {olderItems.map((b, idx) => (
+                <article key={b.generatedAt || idx} className="briefing-card">
+                  <header
+                    className="briefing-card-header"
+                    onClick={() => toggleOlder(idx)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleOlder(idx); }}
+                  >
+                    <div className="briefing-card-title">
+                      <span className="briefing-card-chevron">{expandedIdx.has(idx) ? '▾' : '▸'}</span>
+                      <strong>{formatRelative(b.generatedAt)}</strong>
+                    </div>
+                    <div className="briefing-card-meta">
+                      <span>{b.model}</span>
+                      <span>·</span>
+                      <span>${b.usage?.costUsd ?? '?'}</span>
+                    </div>
+                  </header>
+                  {expandedIdx.has(idx) && (
+                    <div className="briefing-card-body">
+                      <Markdown text={b.markdown} />
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
-}
-
-// Mismo Markdown minimalista que DailyPulseBanner
-function Markdown({ text }) {
-  const lines = text.split('\n');
-  const out = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.startsWith('# ')) out.push(<h1 key={i}>{line.slice(2)}</h1>);
-    else if (line.startsWith('## ')) out.push(<h2 key={i}>{line.slice(3)}</h2>);
-    else if (line.startsWith('### ')) out.push(<h3 key={i}>{line.slice(4)}</h3>);
-    else if (line.startsWith('- ') || line.startsWith('* ')) {
-      const items = [];
-      while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('* '))) {
-        items.push(lines[i].slice(2));
-        i++;
-      }
-      out.push(
-        <ul key={`ul-${i}`}>
-          {items.map((it, idx) => <li key={idx}>{renderInline(it)}</li>)}
-        </ul>
-      );
-      continue;
-    } else if (line.trim()) {
-      out.push(<p key={i}>{renderInline(line)}</p>);
-    }
-    i++;
-  }
-  return <>{out}</>;
-}
-
-function renderInline(text) {
-  const parts = [];
-  const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let lastIdx = 0, key = 0, m;
-  while ((m = regex.exec(text)) !== null) {
-    if (m.index > lastIdx) parts.push(text.slice(lastIdx, m.index));
-    const tok = m[0];
-    if (tok.startsWith('**')) parts.push(<strong key={key++}>{tok.slice(2, -2)}</strong>);
-    else parts.push(<code key={key++}>{tok.slice(1, -1)}</code>);
-    lastIdx = m.index + tok.length;
-  }
-  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
-  return parts.length ? parts : text;
-}
-
-function formatRelative(isoDate) {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const mins = Math.round(diff / 60000);
-  if (mins < 1) return 'ahora mismo';
-  if (mins < 60) return `hace ${mins} min`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `hace ${hours}h`;
-  const days = Math.round(hours / 24);
-  return `hace ${days}d`;
 }
