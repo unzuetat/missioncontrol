@@ -1,0 +1,238 @@
+/* src/briefing.css — estilos para el banner diario y la sección de proyecto */
+
+/* ========================================================================= */
+/* Pulso diario (banner arriba del dashboard)                                */
+/* ========================================================================= */
+
+.daily-pulse {
+  background: var(--color-background-secondary, #f8f8f5);
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+}
+
+.daily-pulse-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.daily-pulse-title {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.daily-pulse-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.daily-pulse-meta {
+  font-size: 12px;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.daily-pulse-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.daily-pulse-btn,
+.daily-pulse-btn-ghost {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.daily-pulse-btn {
+  border: none;
+  background: var(--accent, #1d9e75);
+  color: #fff;
+  font-weight: 500;
+}
+
+.daily-pulse-btn-ghost {
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.15));
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.daily-pulse-btn:disabled,
+.daily-pulse-btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.daily-pulse-empty {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.daily-pulse-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(220, 50, 50, 0.08);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #a32d2d;
+}
+
+.daily-pulse-content {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.08));
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.daily-pulse-content h2 {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 16px 0 6px;
+}
+
+.daily-pulse-content h2:first-child { margin-top: 0; }
+
+.daily-pulse-content p,
+.daily-pulse-content ul {
+  margin: 0 0 12px;
+}
+
+.daily-pulse-content ul { padding-left: 20px; }
+.daily-pulse-content li { margin-bottom: 4px; }
+
+.daily-pulse-content code {
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.9em;
+}
+
+.daily-pulse-content strong { font-weight: 500; }
+
+/* ========================================================================= */
+/* Briefing profundo por proyecto                                            */
+/* ========================================================================= */
+
+.project-briefing {
+  margin: 24px 0;
+  padding: 20px;
+  background: var(--color-background-primary, #fff);
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+}
+
+.project-briefing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.project-briefing-header h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.project-briefing-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.project-briefing-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent-purple, #7F77DD);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.project-briefing-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.project-briefing-error {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: rgba(220, 50, 50, 0.08);
+  border-left: 3px solid #c84040;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #a32d2d;
+}
+
+.project-briefing-empty {
+  padding: 16px;
+  background: var(--color-background-secondary, #f8f8f5);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.project-briefing-empty p { margin: 0 0 8px; }
+.project-briefing-empty p:last-child { margin-bottom: 0; }
+
+.project-briefing-hint {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.project-briefing-loading {
+  font-size: 13px;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.project-briefing-content {
+  line-height: 1.7;
+}
+
+.project-briefing-content h1 {
+  font-size: 20px;
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
+.project-briefing-content h2 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 24px 0 10px;
+  padding-bottom: 4px;
+  border-bottom: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.06));
+}
+
+.project-briefing-content h3 {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 16px 0 8px;
+}
+
+.project-briefing-content p { margin: 0 0 12px; }
+.project-briefing-content ul { margin: 0 0 16px; padding-left: 24px; }
+.project-briefing-content li { margin-bottom: 8px; }
+
+.project-briefing-content code {
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.9em;
+}
+
+.project-briefing-content strong { font-weight: 500; }

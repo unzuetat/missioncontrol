@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "./src/api.js";
 import { createT } from "./src/i18n.js";
+import DailyPulseBanner from "./src/DailyPulseBanner.jsx";
+import ProjectBriefingSection from "./src/ProjectBriefingSection.jsx";
 
 const SOURCE_META = {
   github: { label: "GitHub", icon: "⬡", color: "#8B949E" },
@@ -1650,6 +1652,8 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
 
         {/* GRID VIEW */}
         {!loading && view === "grid" && (
+          <>
+          <DailyPulseBanner apiBase={API_BASE} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 32, alignItems: "start" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -1753,6 +1757,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
               </div>
             </div>
           </div>
+          </>
         )}
 
         {/* IDEAS VIEW */}
@@ -1793,6 +1798,11 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
             }}
           >
             <div>
+              <ProjectBriefingSection
+                projectId={selectedProject.id}
+                apiBase={API_BASE}
+              />
+
               {/* Tech stack */}
               {selectedProject.techStack && (
                 <div style={{ marginBottom: 16 }}>
