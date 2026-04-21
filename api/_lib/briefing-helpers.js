@@ -3,11 +3,13 @@
 /**
  * Calcula el coste aproximado de una llamada a Claude API.
  * Pricing actual (abril 2026):
+ *   - Haiku 4.5:  $1 input / $5 output por 1M
  *   - Sonnet 4.6: $3 input / $15 output por 1M
  *   - Opus 4.7:   $5 input / $25 output por 1M
  */
 export function computeCost(usage, model) {
   const rates = {
+    'claude-haiku-4-5':  { in: 1, out: 5 },
     'claude-sonnet-4-6': { in: 3, out: 15 },
     'claude-opus-4-7':   { in: 5, out: 25 },
   };
