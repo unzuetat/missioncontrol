@@ -1,7 +1,7 @@
 // src/BriefingsView.jsx — pestaña Briefings: gastos + últimos pulsos.
 
 import { useState, useEffect, useMemo } from 'react';
-import { AnnotatedMarkdown, formatRelative } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag } from './briefing-utils.jsx';
 
 export default function BriefingsView({ apiBase = '', apiKey = '', t, projects = [] }) {
   const [items, setItems] = useState([]);
@@ -188,7 +188,7 @@ function BriefingCard({ b, expanded, onToggle, apiBase, apiKey }) {
           <span className="briefing-card-rel">· {formatRelative(b.generatedAt)}</span>
         </div>
         <div className="briefing-card-meta">
-          <span>{b.model}</span>
+          <span>{b.kind === 'project' ? briefingTag(b) : `pulso · ${b.model}`}</span>
           <span>·</span>
           <span>${b.usage?.costUsd ?? '?'}</span>
           {typeof b.projectCount === 'number' && (
@@ -210,13 +210,3 @@ function BriefingCard({ b, expanded, onToggle, apiBase, apiKey }) {
   );
 }
 
-function formatAbsolute(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleString('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}

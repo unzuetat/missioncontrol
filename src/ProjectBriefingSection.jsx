@@ -2,7 +2,7 @@
 // Uso: <ProjectBriefingSection projectId={project.id} apiBase={API_BASE} />
 
 import { useState, useEffect } from 'react';
-import { AnnotatedMarkdown, formatRelative } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, tierFromModel } from './briefing-utils.jsx';
 
 const TIERS = [
   { id: 'flash',    model: 'claude-haiku-4-5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
@@ -18,6 +18,8 @@ const FLAVORS = [
 export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey = '' }) {
   const [items, setItems] = useState([]);
   const [spent30d, setSpent30d] = useState(null);
+  const [highlights, setHighlights] = useState([]);
+  const [highlightsOpen, setHighlightsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [generatingTier, setGeneratingTier] = useState(null);
   const [flavor, setFlavor] = useState('technical');
@@ -32,6 +34,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     if (!projectId) return;
     loadHistory();
     loadSpending();
+    loadHighlights();
   }, [projectId]);
 
   async function loadHistory() {
@@ -64,6 +67,19 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
       });
     } catch {
       // silent: el badge es decorativo
+    }
+  }
+
+  async function loadHighlights() {
+    try {
+      const res = await fetch(
+        `${apiBase}/api/briefing/highlights?projectId=${encodeURIComponent(projectId)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setHighlights(Array.isArray(data.highlights) ? data.highlights : []);
+    } catch {
+      // silent: seccion opcional
     }
   }
 
@@ -115,7 +131,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
           </h3>
           {briefing && (
             <p className="project-briefing-meta">
-              {formatRelative(briefing.generatedAt)} · {briefing.flavor === 'executive' ? 'ejecutivo' : 'técnico'} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · ${briefing.usage.costUsd} · {briefing.model}
+              {formatAbsolute(briefing.generatedAt)} · {formatRelative(briefing.generatedAt)} · {briefingTag(briefing)} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · ${briefing.usage.costUsd}
             </p>
           )}
         </div>
@@ -183,8 +199,42 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
             briefingId={briefing.generatedAt}
             apiBase={apiBase}
             apiKey={apiKey}
+            onChange={loadHighlights}
           />
         </article>
+      )}
+
+      {highlights.length > 0 && (
+        <section className="project-highlights">
+          <header
+            className="project-highlights-header"
+            onClick={() => setHighlightsOpen((v) => !v)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHighlightsOpen((v) => !v); }}
+          >
+            <span className="project-highlights-chevron">{highlightsOpen ? '▾' : '▸'}</span>
+            <h4>📌 Subrayados</h4>
+            <span className="project-highlights-count">{highlights.length}</span>
+          </header>
+          {highlightsOpen && (
+            <ul className="project-highlights-list">
+              {highlights.map((h, idx) => (
+                <li key={`${h.briefingId}-${h.blockIdx}-${idx}`} className="project-highlight">
+                  <div className="project-highlight-text">{h.text}</div>
+                  {h.comment && (
+                    <div className="project-highlight-comment">💬 {h.comment}</div>
+                  )}
+                  <div className="project-highlight-source">
+                    {formatAbsolute(h.briefingGeneratedAt)}
+                    {' · '}{h.flavor === 'executive' ? 'ejecutivo' : 'técnico'}
+                    {' · '}{tierFromModel(h.model)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       {olderItems.length > 0 && (
@@ -208,12 +258,11 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                   >
                     <div className="briefing-card-title">
                       <span className="briefing-card-chevron">{expandedIdx.has(idx) ? '▾' : '▸'}</span>
-                      <strong>{formatRelative(b.generatedAt)}</strong>
+                      <strong>{formatAbsolute(b.generatedAt)}</strong>
+                      <span className="briefing-card-rel">· {formatRelative(b.generatedAt)}</span>
                     </div>
                     <div className="briefing-card-meta">
-                      <span>{b.flavor === 'executive' ? 'ejecutivo' : 'técnico'}</span>
-                      <span>·</span>
-                      <span>{b.model}</span>
+                      <span>{briefingTag(b)}</span>
                       <span>·</span>
                       <span>${b.usage?.costUsd ?? '?'}</span>
                     </div>
@@ -225,6 +274,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                         briefingId={b.generatedAt}
                         apiBase={apiBase}
                         apiKey={apiKey}
+                        onChange={loadHighlights}
                       />
                     </div>
                   )}
