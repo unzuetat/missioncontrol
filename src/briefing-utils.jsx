@@ -46,7 +46,7 @@ function BlockContent({ block }) {
 // AnnotatedMarkdown — markdown interactivo con capa de anotaciones por bloque.
 // Carga annotations del backend al montar y persiste cambios con debounce-by-action.
 
-export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '' }) {
+export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '', onChange }) {
   const [annotations, setAnnotations] = useState({});
   const [loaded, setLoaded] = useState(false);
 
@@ -67,6 +67,8 @@ export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '' 
     return () => { cancelled = true; };
   }, [briefingId, apiBase]);
 
+  const blocks = parseMarkdownBlocks(text);
+
   const save = useCallback(async (next) => {
     if (!briefingId) return;
     try {
@@ -76,26 +78,35 @@ export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '' 
         `${apiBase}/api/briefing/annotations?briefingId=${encodeURIComponent(briefingId)}`,
         { method: 'PUT', headers, body: JSON.stringify({ blocks: next }) }
       );
+      if (onChange) onChange();
     } catch { /* silent */ }
-  }, [briefingId, apiBase, apiKey]);
+  }, [briefingId, apiBase, apiKey, onChange]);
 
   function updateBlock(idx, patch) {
+    const block = blocks[idx];
     let nextState;
     setAnnotations((prev) => {
       const current = prev[idx] || {};
       const merged = { ...current, ...patch };
       const hasAny = !!merged.highlight || !!merged.strike || (merged.comment && merged.comment.length > 0);
       const next = { ...prev };
-      if (hasAny) next[idx] = merged;
-      else delete next[idx];
+      if (hasAny) {
+        // Snapshot del bloque para que los subrayados sobrevivan cuando el
+        // briefing se trunque del histórico (o como referencia agregada).
+        if (block && !merged.text) {
+          merged.text = block.content;
+          merged.type = block.type;
+        }
+        next[idx] = merged;
+      } else {
+        delete next[idx];
+      }
       nextState = next;
       return next;
     });
     // Save fuera del updater (updaters pueden dispararse 2x en StrictMode).
     queueMicrotask(() => { if (nextState) save(nextState); });
   }
-
-  const blocks = parseMarkdownBlocks(text);
   return (
     <div className="annotated-md">
       {blocks.map((b, idx) => (
@@ -177,4 +188,30 @@ export function formatRelative(isoDate) {
   if (hours < 24) return `hace ${hours}h`;
   const days = Math.round(hours / 24);
   return `hace ${days}d`;
+}
+
+export function formatAbsolute(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// Mapea model → tier legible ("flash" | "normal" | "profundo" | model-as-is si desconocido)
+export function tierFromModel(model) {
+  if (model === 'claude-haiku-4-5') return 'flash';
+  if (model === 'claude-sonnet-4-6') return 'normal';
+  if (model === 'claude-opus-4-7') return 'profundo';
+  return model || '?';
+}
+
+// Etiqueta compacta para mostrar junto a una briefing: "ejecutivo · normal"
+export function briefingTag(briefing) {
+  const flavor = briefing?.flavor === 'executive' ? 'ejecutivo' : 'técnico';
+  const tier = tierFromModel(briefing?.model);
+  return `${flavor} · ${tier}`;
 }
