@@ -115,7 +115,7 @@ export async function isMonthlyCapReached(getKv) {
 // ---------------------------------------------------------------------------
 // Historial de briefings (lista Redis con los últimos N)
 
-export const HISTORY_LIMIT = 3;
+export const HISTORY_LIMIT = 10;
 
 /**
  * Inserta un briefing en el head de la lista y trunca a maxItems.

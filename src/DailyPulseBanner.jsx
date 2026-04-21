@@ -3,7 +3,7 @@
 // apiKey se usa solo para POST (generar). GET es público.
 
 import { useState, useEffect } from 'react';
-import { Markdown, formatRelative } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative } from './briefing-utils.jsx';
 
 export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
   const [pulse, setPulse] = useState(null);
@@ -93,7 +93,12 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
 
       {pulse && expanded && (
         <article className="daily-pulse-content">
-          <Markdown text={pulse.markdown} />
+          <AnnotatedMarkdown
+            text={pulse.markdown}
+            briefingId={pulse.generatedAt}
+            apiBase={apiBase}
+            apiKey={apiKey}
+          />
         </article>
       )}
     </div>
