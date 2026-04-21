@@ -1,6 +1,8 @@
-// api/briefing/project.js — Briefing profundo de un proyecto concreto
-// POST body { projectId } → genera análisis profundo con Claude Opus 4.7 (~$0.07)
-// GET ?projectId=X        → devuelve el último briefing profundo de ese proyecto
+// api/briefing/project.js — Briefing de un proyecto concreto
+// POST body { projectId, model?, flavor? } → genera briefing
+//   model: claude-haiku-4-5 | claude-sonnet-4-6 (default) | claude-opus-4-7
+//   flavor: technical (default) | executive
+// GET ?projectId=X → devuelve el último briefing de ese proyecto
 
 import Anthropic from '@anthropic-ai/sdk';
 import { checkAuth, corsHeaders } from '../_lib/auth.js';
@@ -24,7 +26,16 @@ import {
   LIMITS,
 } from '../_lib/briefing-helpers.js';
 
-const MODEL = 'claude-opus-4-7';
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const ALLOWED_MODELS = new Set([
+  'claude-haiku-4-5',   // flash, recap rápido
+  'claude-sonnet-4-6',  // normal, default
+  'claude-opus-4-7',    // profundo, análisis denso
+]);
+
+const DEFAULT_FLAVOR = 'technical';
+const ALLOWED_FLAVORS = new Set(['technical', 'executive']);
+
 const CRUMBS_LIMIT = 30;         // histórico amplio para el profundo
 const MAX_CONTEXT_CHARS = 8000;  // CONTEXT.md casi entero
 
@@ -52,8 +63,16 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'missing_anthropic_api_key' });
       }
 
-      const { projectId } = req.body || {};
+      const { projectId, model: requestedModel, flavor: requestedFlavor } = req.body || {};
       if (!projectId) return res.status(400).json({ error: 'missing_projectId' });
+
+      const model = requestedModel && ALLOWED_MODELS.has(requestedModel)
+        ? requestedModel
+        : DEFAULT_MODEL;
+      const flavor = requestedFlavor && ALLOWED_FLAVORS.has(requestedFlavor)
+        ? requestedFlavor
+        : DEFAULT_FLAVOR;
+      const systemPrompt = flavor === 'executive' ? EXECUTIVE_SYSTEM_PROMPT : TECHNICAL_SYSTEM_PROMPT;
 
       const project = await getProjectById(projectId);
       if (!project) return res.status(404).json({ error: 'project_not_found' });
@@ -84,9 +103,9 @@ export default async function handler(req, res) {
       // IMPORTANTE: Opus 4.7 no acepta temperature/top_p/top_k non-default
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const response = await client.messages.create({
-        model: MODEL,
+        model,
         max_tokens: 4000,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{
           role: 'user',
           content: buildUserPrompt(project, crumbs, contextFile),
@@ -94,17 +113,18 @@ export default async function handler(req, res) {
       });
 
       const markdown = extractMarkdown(response);
-      const usage = computeCost(response.usage, MODEL);
+      const usage = computeCost(response.usage, model);
 
       const briefing = {
         kind: 'project',
         projectId,
         projectName: project.name,
+        flavor,
         markdown,
         generatedAt: new Date().toISOString(),
         durationMs: Date.now() - startedAt,
         usage,
-        model: MODEL,
+        model,
       };
       await Promise.all([
         pushBriefing(getKv, listKeyFor(projectId), briefing),
@@ -114,7 +134,7 @@ export default async function handler(req, res) {
           projectId,
           costUsd: usage.costUsd,
           generatedAt: briefing.generatedAt,
-          model: MODEL,
+          model,
           durationMs: briefing.durationMs,
         }),
       ]);
@@ -135,7 +155,7 @@ export default async function handler(req, res) {
 // ---------------------------------------------------------------------------
 // Prompts
 
-const SYSTEM_PROMPT = `Eres el Chief of Staff de Telmo, especializado en prepararle para meterse a fondo en un proyecto.
+const TECHNICAL_SYSTEM_PROMPT = `Eres el Chief of Staff de Telmo, especializado en prepararle para meterse a fondo en un proyecto.
 
 Recibes el estado completo de UN proyecto: su CONTEXT.md, su histórico de actividad, decisiones tomadas. Tu trabajo es que cuando Telmo abra ese proyecto, tenga todo lo que necesita en la cabeza en 2 minutos de lectura.
 
@@ -167,6 +187,45 @@ Lo que se ha ido acumulando y conviene atajar pronto. Solo si hay algo real — 
 ## Contexto rápido
 Para volver al hilo: stack principal, decisiones arquitectónicas clave, convenciones del proyecto. Máximo 4-5 líneas.`;
 
+const EXECUTIVE_SYSTEM_PROMPT = `Eres un consultor estratégico de producto que acompaña a Telmo en la evaluación de sus proyectos personales. Tu trabajo NO es entrar en implementación — es evaluar dónde está el proyecto, hacia dónde va, y qué decisiones de dirección tomar.
+
+Recibes el contexto completo del proyecto (CONTEXT.md, histórico de actividad, decisiones). Lo analizas desde una perspectiva de producto y estrategia, no de código.
+
+REGLAS:
+1. Castellano. Tono de sparring de producto senior. Claro, directo, sin corporate-speak.
+2. Nada de ramas, commits, archivos concretos. Sí de: momentum, producto, roadmap, foco, trade-offs estratégicos.
+3. Cada recomendación debe incluir explícitamente los tres campos: Beneficio, Coste y Esfuerzo.
+   - **Beneficio**: qué desbloquea, valida o acelera. Concreto — evita genéricos como "mejora la calidad".
+   - **Coste**: dinero, herramientas, dependencias, riesgo operacional. Si el coste es cero, dilo.
+   - **Esfuerzo**: horas, días o semanas. Sé específico.
+4. Prioriza honestidad sobre amabilidad. Si el proyecto está estancado o ha derivado del propósito original, dilo.
+5. Si detectas oportunidad de doble-apuesta con otros proyectos del portfolio (si el CONTEXT.md lo menciona), señálala.
+
+FORMATO (markdown):
+
+# Estrategia · [nombre del proyecto]
+
+## Estado del proyecto
+2-3 frases con valoración honesta: ritmo, logros hasta ahora, salud general. Síntesis, no lista.
+
+## Dirección
+¿Hacia dónde apunta? ¿Sigue alineado con su propósito inicial o ha derivado? Si aplica, señales de valor / PMF.
+
+## Recomendaciones
+2-3 movimientos estratégicos concretos. Para cada uno, usa este formato:
+
+**Movimiento**: [nombre corto]
+- Beneficio: [qué mueve]
+- Coste: [dinero / herramientas / riesgo, o "coste cero"]
+- Esfuerzo: [tiempo estimado — horas, días, semanas]
+- Justificación: [por qué éste y no otro]
+
+## Roadmap corto (2-4 semanas)
+Lo que movería la aguja en este horizonte, con secuencia. Prioridad sobre exhaustividad. Máximo 4 hitos.
+
+## Señales a vigilar
+Indicadores de que hay que reorientar: estancamiento, scope creep, desalineación con otros proyectos del portfolio. Omite si no hay nada relevante.`;
+
 function buildUserPrompt(project, crumbs, contextFile) {
   const crumbsTxt = crumbs.length
     ? crumbs.map((c) => {
@@ -194,5 +253,5 @@ ${ctxTxt}
 
 ---
 
-Genera el briefing profundo.`;
+Genera el briefing siguiendo el formato indicado en las instrucciones.`;
 }

@@ -151,21 +151,107 @@
   color: var(--text-secondary, #6b6b6b);
 }
 
-.project-briefing-btn {
-  padding: 8px 14px;
-  border: none;
+.project-briefing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.project-briefing-flavors {
+  display: inline-flex;
+  background: var(--color-background-secondary, #f8f8f5);
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.1));
   border-radius: 6px;
-  background: var(--accent-purple, #7F77DD);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
+  padding: 2px;
+  gap: 2px;
+}
+
+.project-briefing-flavor {
+  all: unset;
   cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.02em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: var(--text-secondary, #6b6b6b);
+  transition: all 0.15s;
+}
+
+.project-briefing-flavor:hover:not(:disabled):not(.is-active) {
+  color: var(--text-primary, #1a1a1a);
+}
+
+.project-briefing-flavor.is-active {
+  background: var(--color-background-primary, #fff);
+  color: var(--text-primary, #1a1a1a);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+
+.project-briefing-flavor:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.project-briefing-tiers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.project-briefing-tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 78px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
   white-space: nowrap;
 }
 
-.project-briefing-btn:disabled {
-  opacity: 0.6;
+.project-briefing-tier.is-primary {
+  border: none;
+  background: var(--accent-purple, #7F77DD);
+  color: #fff;
+}
+
+.project-briefing-tier.is-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.project-briefing-tier.is-secondary {
+  background: transparent;
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.18));
+  color: var(--text-primary, #1a1a1a);
+}
+
+.project-briefing-tier.is-secondary:hover:not(:disabled) {
+  background: var(--color-background-secondary, #f8f8f5);
+}
+
+.project-briefing-tier:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+.project-briefing-tier-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.project-briefing-tier-price {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  opacity: 0.65;
+  line-height: 1;
 }
 
 .project-briefing-error {

@@ -4,11 +4,23 @@
 import { useState, useEffect } from 'react';
 import { AnnotatedMarkdown, formatRelative } from './briefing-utils.jsx';
 
+const TIERS = [
+  { id: 'flash',    model: 'claude-haiku-4-5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
+  { id: 'normal',   model: 'claude-sonnet-4-6', label: 'Normal',   price: '~$0.03', hint: 'Briefing normal' },
+  { id: 'profundo', model: 'claude-opus-4-7',   label: 'Profundo', price: '~$0.07', hint: 'Análisis denso' },
+];
+
+const FLAVORS = [
+  { id: 'technical', label: 'Técnico',   hint: 'Dónde lo dejaste, qué hacer siguiente, riesgos. Orientado a código.' },
+  { id: 'executive', label: 'Ejecutivo', hint: 'Estado, dirección, recomendaciones con coste/beneficio/esfuerzo, roadmap.' },
+];
+
 export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey = '' }) {
   const [items, setItems] = useState([]);
   const [spent30d, setSpent30d] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [generatingTier, setGeneratingTier] = useState(null);
+  const [flavor, setFlavor] = useState('technical');
   const [error, setError] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedIdx, setExpandedIdx] = useState(() => new Set());
@@ -55,8 +67,8 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     }
   }
 
-  async function generate() {
-    setGenerating(true);
+  async function generate(tier) {
+    setGeneratingTier(tier.id);
     setError(null);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -64,19 +76,19 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
       const res = await fetch(`${apiBase}/api/briefing/project`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, model: tier.model, flavor }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || body.error || `HTTP ${res.status}`);
       }
       const fresh = await res.json();
-      setItems((prev) => [fresh, ...prev].slice(0, 3));
+      setItems((prev) => [fresh, ...prev].slice(0, 10));
       loadSpending(); // refresca badge
     } catch (e) {
       setError(e.message);
     } finally {
-      setGenerating(false);
+      setGeneratingTier(null);
     }
   }
 
@@ -103,28 +115,63 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
           </h3>
           {briefing && (
             <p className="project-briefing-meta">
-              {formatRelative(briefing.generatedAt)} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · ${briefing.usage.costUsd} · {briefing.model}
+              {formatRelative(briefing.generatedAt)} · {briefing.flavor === 'executive' ? 'ejecutivo' : 'técnico'} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · ${briefing.usage.costUsd} · {briefing.model}
             </p>
           )}
         </div>
-        <button
-          className="project-briefing-btn"
-          onClick={generate}
-          disabled={generating}
-        >
-          {generating ? 'Analizando proyecto…' : briefing ? 'Regenerar' : 'Preparar sesión'}
-        </button>
+        <div className="project-briefing-actions">
+          <div className="project-briefing-flavors" role="tablist" aria-label="Tipo de briefing">
+            {FLAVORS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={flavor === f.id}
+                className={`project-briefing-flavor ${flavor === f.id ? 'is-active' : ''}`}
+                onClick={() => setFlavor(f.id)}
+                disabled={!!generatingTier}
+                title={f.hint}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="project-briefing-tiers">
+            {TIERS.map((tier) => {
+              const isGenerating = generatingTier === tier.id;
+              const anyGenerating = !!generatingTier;
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  className={`project-briefing-tier ${tier.id === 'normal' ? 'is-primary' : 'is-secondary'}`}
+                  onClick={() => generate(tier)}
+                  disabled={anyGenerating}
+                  title={tier.hint}
+                >
+                  <span className="project-briefing-tier-label">
+                    {isGenerating ? 'Analizando…' : tier.label}
+                  </span>
+                  <span className="project-briefing-tier-price">{tier.price}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </header>
 
       {error && <div className="project-briefing-error">Error: {error}</div>}
       {loading && <p className="project-briefing-loading">Cargando…</p>}
 
-      {!loading && !briefing && !generating && (
+      {!loading && !briefing && !generatingTier && (
         <div className="project-briefing-empty">
-          <p>Antes de meterte a trabajar en este proyecto, pulsa <strong>Preparar sesión</strong>.</p>
+          <p>
+            Elige <strong>flavor</strong> y <strong>tier</strong> y genera briefing.
+          </p>
           <p className="project-briefing-hint">
-            Genera un análisis profundo con Opus 4.7: dónde lo dejaste, qué hacer siguiente,
-            decisiones pendientes, riesgos. ~$0.07 por generación.
+            <strong>Técnico</strong> — dónde lo dejaste, qué hacer siguiente, riesgos (código).
+            {' '}<strong>Ejecutivo</strong> — dirección, recomendaciones con coste/beneficio/esfuerzo, roadmap.
+            {' '}Tiers: Flash (recap), Normal (default), Profundo (denso).
           </p>
         </div>
       )}
@@ -164,6 +211,8 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                       <strong>{formatRelative(b.generatedAt)}</strong>
                     </div>
                     <div className="briefing-card-meta">
+                      <span>{b.flavor === 'executive' ? 'ejecutivo' : 'técnico'}</span>
+                      <span>·</span>
                       <span>{b.model}</span>
                       <span>·</span>
                       <span>${b.usage?.costUsd ?? '?'}</span>
