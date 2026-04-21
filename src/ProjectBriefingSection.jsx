@@ -2,7 +2,7 @@
 // Uso: <ProjectBriefingSection projectId={project.id} apiBase={API_BASE} />
 
 import { useState, useEffect } from 'react';
-import { Markdown, formatRelative } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative } from './briefing-utils.jsx';
 
 export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey = '' }) {
   const [items, setItems] = useState([]);
@@ -131,7 +131,12 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
 
       {briefing && (
         <article className="project-briefing-content">
-          <Markdown text={briefing.markdown} />
+          <AnnotatedMarkdown
+            text={briefing.markdown}
+            briefingId={briefing.generatedAt}
+            apiBase={apiBase}
+            apiKey={apiKey}
+          />
         </article>
       )}
 
@@ -166,7 +171,12 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                   </header>
                   {expandedIdx.has(idx) && (
                     <div className="briefing-card-body">
-                      <Markdown text={b.markdown} />
+                      <AnnotatedMarkdown
+                        text={b.markdown}
+                        briefingId={b.generatedAt}
+                        apiBase={apiBase}
+                        apiKey={apiKey}
+                      />
                     </div>
                   )}
                 </article>

@@ -490,3 +490,111 @@
   vertical-align: middle;
   letter-spacing: 0.02em;
 }
+
+/* ========================================================================= */
+/* Anotaciones sobre briefings (tachar / resaltar / comentar)                 */
+/* ========================================================================= */
+
+.annotated-md {
+  position: relative;
+}
+
+.ann-block {
+  position: relative;
+  padding: 2px 28px 2px 8px;
+  margin: 0 -8px;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+
+.ann-block:hover {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.ann-block.ann-block-highlight {
+  background: #fff59a66;
+}
+
+.ann-block.ann-block-highlight:hover {
+  background: #fff59a99;
+}
+
+.ann-block-strike .ann-block-body {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.ann-block-body > :first-child { margin-top: 0; }
+.ann-block-body > :last-child { margin-bottom: 0; }
+
+.ann-li {
+  position: relative;
+  padding-left: 20px;
+  margin: 0 0 4px;
+  line-height: 1.7;
+}
+
+.ann-li::before {
+  content: "•";
+  position: absolute;
+  left: 6px;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.ann-comment {
+  margin: 6px 0 10px 12px;
+  padding: 6px 10px;
+  border-left: 2px solid #7F77DD;
+  background: rgba(127, 119, 221, 0.06);
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+  color: var(--text-primary, #1a1a1a);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+.ann-toolbar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.ann-block:hover .ann-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ann-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--color-background-primary, #fff);
+  border: 0.5px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.15));
+  color: var(--text-secondary, #6b6b6b);
+  transition: all 0.12s;
+}
+
+.ann-btn:hover {
+  background: var(--color-background-secondary, #f8f8f5);
+  color: var(--text-primary, #1a1a1a);
+}
+
+.ann-btn.active {
+  background: #14B8A618;
+  border-color: #14B8A635;
+  color: #14B8A6;
+}

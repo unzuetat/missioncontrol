@@ -1,9 +1,9 @@
 // src/BriefingsView.jsx — pestaña Briefings: gastos + últimos pulsos.
 
 import { useState, useEffect, useMemo } from 'react';
-import { Markdown, formatRelative } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative } from './briefing-utils.jsx';
 
-export default function BriefingsView({ apiBase = '', t, projects = [] }) {
+export default function BriefingsView({ apiBase = '', apiKey = '', t, projects = [] }) {
   const [items, setItems] = useState([]);
   const [spending, setSpending] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,11 +17,15 @@ export default function BriefingsView({ apiBase = '', t, projects = [] }) {
     setLoading(true);
     setError(null);
     try {
-      const spendingUrl = filter.kind === 'project' && filter.projectId
+      const isProject = filter.kind === 'project' && filter.projectId;
+      const spendingUrl = isProject
         ? `${apiBase}/api/briefing/spending?projectId=${encodeURIComponent(filter.projectId)}`
         : `${apiBase}/api/briefing/spending`;
+      const historyUrl = isProject
+        ? `${apiBase}/api/briefing/history?kind=project&projectId=${encodeURIComponent(filter.projectId)}`
+        : `${apiBase}/api/briefing/history?kind=daily`;
       const [historyRes, spendingRes] = await Promise.all([
-        fetch(`${apiBase}/api/briefing/history?kind=daily`),
+        fetch(historyUrl),
         fetch(spendingUrl),
       ]);
       if (!historyRes.ok) throw new Error(`history HTTP ${historyRes.status}`);
@@ -57,7 +61,9 @@ export default function BriefingsView({ apiBase = '', t, projects = [] }) {
     });
   }
 
-  const showHistory = filter.kind !== 'project';
+  const historyHeading = filter.kind === 'project' && filter.projectId
+    ? `Últimos briefings · ${projectsMap[filter.projectId] || filter.projectId}`
+    : 'Últimos pulsos diarios';
 
   return (
     <div>
@@ -124,25 +130,25 @@ export default function BriefingsView({ apiBase = '', t, projects = [] }) {
         )}
       </section>
 
-      {showHistory && (
-        <section className="briefings-history-section">
-          <h4 className="briefings-heading">Últimos pulsos diarios</h4>
-          {loading && !items.length && <p className="briefings-loading">Cargando…</p>}
-          {!loading && !items.length && !error && (
-            <p className="briefings-empty">{t('noBriefings')}</p>
-          )}
-          <div className="briefings-list">
-            {items.map((b, idx) => (
-              <BriefingCard
-                key={b.generatedAt || idx}
-                b={b}
-                expanded={expanded.has(idx)}
-                onToggle={() => toggle(idx)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="briefings-history-section">
+        <h4 className="briefings-heading">{historyHeading}</h4>
+        {loading && !items.length && <p className="briefings-loading">Cargando…</p>}
+        {!loading && !items.length && !error && (
+          <p className="briefings-empty">{t('noBriefings')}</p>
+        )}
+        <div className="briefings-list">
+          {items.map((b, idx) => (
+            <BriefingCard
+              key={b.generatedAt || idx}
+              b={b}
+              expanded={expanded.has(idx)}
+              onToggle={() => toggle(idx)}
+              apiBase={apiBase}
+              apiKey={apiKey}
+            />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -166,7 +172,7 @@ function SpendingCard({ label, total, count, byKind, remaining, isCap, showBreak
   );
 }
 
-function BriefingCard({ b, expanded, onToggle }) {
+function BriefingCard({ b, expanded, onToggle, apiBase, apiKey }) {
   return (
     <article className="briefing-card">
       <header
@@ -192,7 +198,12 @@ function BriefingCard({ b, expanded, onToggle }) {
       </header>
       {expanded && (
         <div className="briefing-card-body">
-          <Markdown text={b.markdown} />
+          <AnnotatedMarkdown
+            text={b.markdown}
+            briefingId={b.generatedAt}
+            apiBase={apiBase}
+            apiKey={apiKey}
+          />
         </div>
       )}
     </article>
