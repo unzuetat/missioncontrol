@@ -4,6 +4,7 @@ import { createT } from "./src/i18n.js";
 import DailyPulseBanner from "./src/DailyPulseBanner.jsx";
 import ProjectBriefingSection from "./src/ProjectBriefingSection.jsx";
 import BriefingsView from "./src/BriefingsView.jsx";
+import HighlightsView from "./src/HighlightsView.jsx";
 
 const SOURCE_META = {
   github: { label: "GitHub", icon: "⬡", color: "#8B949E" },
@@ -1547,7 +1548,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 color: "var(--text-primary)", transition: "font-size 0.3s",
               }}
             >
-              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : "Mission Control"}
+              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : view === "highlights" ? `📌 ${t("allHighlights")}` : "Mission Control"}
             </h1>
             {view === "detail" && selectedProject && (
               <>
@@ -1556,7 +1557,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 <ProjectLinks project={selectedProject} />
               </>
             )}
-            {(view === "ideas" || view === "testing" || view === "briefings") && (
+            {(view === "ideas" || view === "testing" || view === "briefings" || view === "highlights") && (
               <button
                 onClick={() => setView("grid")}
                 style={{
@@ -1719,6 +1720,20 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   >
                     📋 {t("allBriefings")}
                   </button>
+                  <button
+                    onClick={() => setView("highlights")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 11,
+                      padding: "5px 12px", borderRadius: 6,
+                      background: "#EAB30818", border: "1px solid #EAB30835",
+                      color: "#CA8A04", fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = "#EAB30828"; }}
+                    onMouseLeave={(e) => { e.target.style.background = "#EAB30818"; }}
+                  >
+                    📌 {t("allHighlights")}
+                  </button>
                 </div>
               </div>
 
@@ -1806,6 +1821,18 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
         {/* BRIEFINGS VIEW */}
         {!loading && view === "briefings" && (
           <BriefingsView apiBase={API_BASE} t={t} projects={projects} />
+        )}
+
+        {/* HIGHLIGHTS VIEW */}
+        {!loading && view === "highlights" && (
+          <HighlightsView
+            apiBase={API_BASE}
+            t={t}
+            onOpenProject={(id) => {
+              const p = projects.find((x) => x.id === id);
+              if (p) handleSelectProject(p);
+            }}
+          />
         )}
 
         {/* DETAIL VIEW */}

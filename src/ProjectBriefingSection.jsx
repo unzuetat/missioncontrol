@@ -19,7 +19,8 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
   const [items, setItems] = useState([]);
   const [spent30d, setSpent30d] = useState(null);
   const [highlights, setHighlights] = useState([]);
-  const [highlightsOpen, setHighlightsOpen] = useState(true);
+  const [highlightsOpen, setHighlightsOpen] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generatingTier, setGeneratingTier] = useState(null);
   const [flavor, setFlavor] = useState('technical');
@@ -100,6 +101,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
       }
       const fresh = await res.json();
       setItems((prev) => [fresh, ...prev].slice(0, 10));
+      setBriefingOpen(true); // auto-expandir el recién generado
       loadSpending(); // refresca badge
     } catch (e) {
       setError(e.message);
@@ -193,6 +195,27 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
       )}
 
       {briefing && (
+        <div className="project-briefing-toggles">
+          <button
+            type="button"
+            className="project-briefing-history-toggle"
+            onClick={() => setBriefingOpen((v) => !v)}
+          >
+            {briefingOpen ? '▾ Ocultar briefing' : '▸ Ver briefing'}
+          </button>
+          {highlights.length > 0 && (
+            <button
+              type="button"
+              className="project-briefing-history-toggle project-briefing-highlights-toggle"
+              onClick={() => setHighlightsOpen((v) => !v)}
+            >
+              {highlightsOpen ? '▾' : '▸'} 📌 Subrayados ({highlights.length})
+            </button>
+          )}
+        </div>
+      )}
+
+      {briefing && briefingOpen && (
         <article className="project-briefing-content">
           <AnnotatedMarkdown
             text={briefing.markdown}
@@ -204,37 +227,22 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
         </article>
       )}
 
-      {highlights.length > 0 && (
-        <section className="project-highlights">
-          <header
-            className="project-highlights-header"
-            onClick={() => setHighlightsOpen((v) => !v)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHighlightsOpen((v) => !v); }}
-          >
-            <span className="project-highlights-chevron">{highlightsOpen ? '▾' : '▸'}</span>
-            <h4>📌 Subrayados</h4>
-            <span className="project-highlights-count">{highlights.length}</span>
-          </header>
-          {highlightsOpen && (
-            <ul className="project-highlights-list">
-              {highlights.map((h, idx) => (
-                <li key={`${h.briefingId}-${h.blockIdx}-${idx}`} className="project-highlight">
-                  <div className="project-highlight-text">{h.text}</div>
-                  {h.comment && (
-                    <div className="project-highlight-comment">💬 {h.comment}</div>
-                  )}
-                  <div className="project-highlight-source">
-                    {formatAbsolute(h.briefingGeneratedAt)}
-                    {' · '}{h.flavor === 'executive' ? 'ejecutivo' : 'técnico'}
-                    {' · '}{tierFromModel(h.model)}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+      {highlightsOpen && highlights.length > 0 && (
+        <ul className="project-highlights-list project-highlights-list-standalone">
+          {highlights.map((h, idx) => (
+            <li key={`${h.briefingId}-${h.blockIdx}-${idx}`} className="project-highlight">
+              <div className="project-highlight-text">{h.text}</div>
+              {h.comment && (
+                <div className="project-highlight-comment">💬 {h.comment}</div>
+              )}
+              <div className="project-highlight-source">
+                {formatAbsolute(h.briefingGeneratedAt)}
+                {' · '}{h.flavor === 'executive' ? 'ejecutivo' : 'técnico'}
+                {' · '}{tierFromModel(h.model)}
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
 
       {olderItems.length > 0 && (
