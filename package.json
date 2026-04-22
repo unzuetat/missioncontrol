@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "sync": "node --env-file=agent/.env.local agent/sync.js"
+    "sync": "node --env-file=agent/.env.local agent/sync.js",
+    "setup-claude": "node scripts/setup-claude.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

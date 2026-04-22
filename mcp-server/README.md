@@ -19,51 +19,40 @@ Expone Mission Control como **herramientas nativas** para cualquier sesión de C
 - `mc_upsert_file` — crea o actualiza archivo por nombre (atajo para CONTEXT.md / DEPLOY_STATUS.md)
 - `mc_delete_file` — borra archivo
 
-## Instalación
+## Instalación en una máquina nueva
 
-### 1. Instalar dependencias
+Tres comandos desde la raíz del repo:
 
 ```bash
-cd mcp-server
-npm install
+git pull                          # traer mcp-server/, commands/, scripts/
+cd mcp-server && npm install      # deps del MCP server
+cd .. && npm run setup-claude     # copia commands + registra MCP en ~/.claude.json
 ```
 
-### 2. Registrar el server en Claude Code
+Tras esto, **reinicia Claude Code** y comprueba que en una sesión nueva:
+- `/mcp` muestra `missioncontrol` conectado.
+- `/export-mc` y `/import-mc` aparecen entre los slash commands.
 
-Editar `~/.claude.json` (global, afecta a todas las sesiones en todas las carpetas) y añadir:
+### Qué hace `npm run setup-claude`
 
-```json
-{
-  "mcpServers": {
-    "missioncontrol": {
-      "command": "node",
-      "args": ["C:\\Users\\tgomez\\Desktop\\Missioncontrol\\mcp-server\\index.js"],
-      "env": {
-        "MC_API_URL": "https://missioncontrol-coral.vercel.app",
-        "MC_API_KEY": "<la misma key que en agent/.env.local>"
-      }
-    }
-  }
-}
-```
+El script [`scripts/setup-claude.mjs`](../scripts/setup-claude.mjs):
 
-En Mac (casa) la ruta será `/Users/telmo/Projects/Missioncontrol/mcp-server/index.js`.
+1. Copia `commands/*.md` → `~/.claude/commands/` (crea la carpeta si falta).
+2. Lee `MC_API_KEY` y `MC_API_URL` de `agent/.env.local` (el mismo fichero que usa `agent/sync.js`).
+3. Registra o actualiza la entrada `mcpServers.missioncontrol` en `~/.claude.json`, apuntando al `index.js` de este clone concreto del repo — así la ruta es correcta automáticamente en Mac, Windows, o cualquier máquina futura.
 
-### 3. Verificar
+Si todavía no tienes `agent/.env.local`, copia `agent/.env.example` a `agent/.env.local` y pega la `MC_API_KEY` antes de ejecutar `setup-claude`.
 
-Arranca una nueva sesión de Claude Code y comprueba que las tools `mc_*` aparecen disponibles. Pide, por ejemplo: `list MC projects`. Debería llamar a `mc_list_projects` sin pedir permiso de red.
+### Re-ejecutar `setup-claude`
 
-## Slash command `/export-mc`
+Cuando edites los slash commands en `commands/` o toques algo en `mcp-server/`, vuelve a correr `npm run setup-claude` en esa máquina para refrescar la copia en `~/.claude/`. Es idempotente — sobreescribe sin miedo.
 
-El ritual de "exportar sesión a Mission Control" vive ahora en `~/.claude/commands/export-mc.md`. Invocar con `/export-mc` orquesta las tools anteriores en orden:
+## Slash commands
 
-1. `mc_list_projects` → detectar projectId
-2. `mc_update_project` → URLs/ramas si han cambiado
-3. `mc_add_crumbs` → registrar la sesión
-4. `mc_upsert_file` → CONTEXT.md
-5. `mc_upsert_file` → DEPLOY_STATUS.md (si aplica)
+- **`/export-mc`** — al cerrar sesión, empuja crumbs + CONTEXT.md + DEPLOY_STATUS.md al proyecto correcto de MC. Detecta proyecto por `git remote` con regla estricta (pregunta ante cualquier duda para evitar elegir mal entre duplicados).
+- **`/import-mc`** — al abrir una sesión, tira CONTEXT.md, crumbs recientes, subrayados pendientes y último briefing del proyecto del cwd. Misma regla de detección.
 
-Sin `curl`s, sin permisos de Bash, sin lista hardcodeada de proyectos.
+Viven versionados en [`commands/`](../commands/) del repo. `setup-claude` los copia a `~/.claude/commands/` para que Claude Code los descubra globalmente.
 
 ## Relación con `agent/sync.js`
 
