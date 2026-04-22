@@ -10,6 +10,17 @@ function slugify(nombre) {
     .replace(/(^-|-$)/g, "");
 }
 
+export function normalizarRepoUrl(url) {
+  if (!url) return "";
+  return url
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/$/, "")
+    .replace(/\.git$/, "");
+}
+
 export class McClient {
   constructor({ baseUrl, apiKey }) {
     if (!baseUrl) throw new Error("McClient: falta MC_API_URL");
@@ -78,19 +89,33 @@ export class McClient {
   }
 
   /**
-   * Asegura que el proyecto existe (por slug del nombre).
-   * Si no existe, lo crea con los metadatos que le pasemos.
+   * Asegura que el proyecto existe. Prioridad:
+   *   1. Match por repoUrl normalizado — el repo es identidad canónica
+   *      y el nombre de carpeta varía entre máquinas (Missioncontrol vs
+   *      missioncontrol) produciendo slugs distintos para el mismo proyecto.
+   *   2. Match por slug del nombre — para proyectos sin repoUrl.
+   *   3. Crear.
    */
   async asegurarProyecto({ nombre, repoUrl, techStack }) {
-    const id = slugify(nombre);
     const proyectos = await this.listarProyectos();
+
+    const normalizado = normalizarRepoUrl(repoUrl);
+    if (normalizado) {
+      const match = proyectos.find(
+        (p) => normalizarRepoUrl(p.repoUrl) === normalizado
+      );
+      if (match) return match.id;
+    }
+
+    const id = slugify(nombre);
     if (proyectos.find((p) => p.id === id)) return id;
-    await this.crearProyecto({
+
+    const nuevo = await this.crearProyecto({
       name: nombre,
       status: "desarrollo",
       repoUrl: repoUrl || "",
       techStack: techStack || "",
     });
-    return id;
+    return nuevo?.id || id;
   }
 }
