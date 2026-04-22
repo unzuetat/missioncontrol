@@ -5,9 +5,9 @@ import { useState, useEffect } from 'react';
 import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, tierFromModel } from './briefing-utils.jsx';
 
 const TIERS = [
-  { id: 'flash',    model: 'claude-haiku-4-5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
-  { id: 'normal',   model: 'claude-sonnet-4-6', label: 'Normal',   price: '~$0.03', hint: 'Briefing normal' },
-  { id: 'profundo', model: 'claude-opus-4-7',   label: 'Profundo', price: '~$0.07', hint: 'Análisis denso' },
+  { id: 'flash',    model: 'claude-haiku-4-5',  modelShort: 'Haiku 4.5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
+  { id: 'normal',   model: 'claude-sonnet-4-6', modelShort: 'Sonnet 4.6', label: 'Normal',   price: '~$0.03', hint: 'Briefing normal' },
+  { id: 'profundo', model: 'claude-opus-4-7',   modelShort: 'Opus 4.7',   label: 'Profundo', price: '~$0.07', hint: 'Análisis denso' },
 ];
 
 const FLAVORS = [
@@ -170,6 +170,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                   <span className="project-briefing-tier-label">
                     {isGenerating ? 'Analizando…' : tier.label}
                   </span>
+                  <span className="project-briefing-tier-model">{tier.modelShort}</span>
                   <span className="project-briefing-tier-price">{tier.price}</span>
                 </button>
               );

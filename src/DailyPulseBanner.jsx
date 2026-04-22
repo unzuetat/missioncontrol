@@ -7,10 +7,13 @@
 import { useState, useEffect } from 'react';
 import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag } from './briefing-utils.jsx';
 
+// Rango de precio por tier porque el flavor cambia el tamaño del contexto:
+// técnico = ligero (~5k tokens in), ejecutivo = amplio (~12k tokens in con
+// 30 proyectos). Los extremos del rango corresponden a ambos escenarios.
 const TIERS = [
-  { id: 'flash',    model: 'claude-haiku-4-5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
-  { id: 'normal',   model: 'claude-sonnet-4-6', label: 'Normal',   price: '~$0.03', hint: 'Default' },
-  { id: 'profundo', model: 'claude-opus-4-7',   label: 'Profundo', price: '~$0.07', hint: 'Análisis denso' },
+  { id: 'flash',    model: 'claude-haiku-4-5',  modelShort: 'Haiku 4.5',  label: 'Flash',    price: '~$0.01–0.03', hint: 'Recap rápido' },
+  { id: 'normal',   model: 'claude-sonnet-4-6', modelShort: 'Sonnet 4.6', label: 'Normal',   price: '~$0.03–0.08', hint: 'Default' },
+  { id: 'profundo', model: 'claude-opus-4-7',   modelShort: 'Opus 4.7',   label: 'Profundo', price: '~$0.05–0.12', hint: 'Análisis denso' },
 ];
 
 const FLAVORS = [
@@ -124,6 +127,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
                 <span className="project-briefing-tier-label">
                   {isGenerating ? 'Generando…' : tier.label}
                 </span>
+                <span className="project-briefing-tier-model">{tier.modelShort}</span>
                 <span className="project-briefing-tier-price">{tier.price}</span>
               </button>
             );

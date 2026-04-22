@@ -255,6 +255,14 @@
   line-height: 1.1;
 }
 
+.project-briefing-tier-model {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  opacity: 0.8;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+
 .project-briefing-tier-price {
   font-size: 10px;
   font-family: var(--font-mono, monospace);
