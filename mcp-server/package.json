@@ -1,0 +1,20 @@
+{
+  "name": "missioncontrol-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server exposing Mission Control as native tools to any Claude session.",
+  "bin": {
+    "missioncontrol-mcp": "index.js"
+  },
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
