@@ -42,6 +42,14 @@
   gap: 8px;
 }
 
+.daily-pulse-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 .daily-pulse-btn,
 .daily-pulse-btn-ghost {
   padding: 6px 12px;
@@ -728,6 +736,22 @@
 .highlights-group .project-highlights-list {
   margin: 0;
   padding: 0 16px 16px;
+}
+
+.highlights-group-portfolio {
+  border-color: #7F77DD55;
+  background: linear-gradient(180deg, #7F77DD08 0%, var(--color-background-primary, #fff) 60%);
+}
+
+.highlights-group-portfolio .highlights-group-count {
+  background: #7F77DD18;
+  border-color: #7F77DD35;
+  color: #7F77DD;
+}
+
+.highlights-group-icon {
+  margin-right: 6px;
+  font-size: 13px;
 }
 
 /* ========================================================================= */

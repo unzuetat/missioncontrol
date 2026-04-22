@@ -1,16 +1,30 @@
-// src/DailyPulseBanner.jsx — banner compacto arriba del dashboard
+// src/DailyPulseBanner.jsx — banner compacto arriba del dashboard.
+// Muestra el último pulso diario y permite regenerar con flavor (técnico/ejecutivo)
+// y tier (flash/normal/profundo), mismo criterio que ProjectBriefingSection.
 // Uso: <DailyPulseBanner apiBase={API_BASE} apiKey={API_KEY} />
 // apiKey se usa solo para POST (generar). GET es público.
 
 import { useState, useEffect } from 'react';
-import { AnnotatedMarkdown, formatRelative } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag } from './briefing-utils.jsx';
+
+const TIERS = [
+  { id: 'flash',    model: 'claude-haiku-4-5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
+  { id: 'normal',   model: 'claude-sonnet-4-6', label: 'Normal',   price: '~$0.03', hint: 'Default' },
+  { id: 'profundo', model: 'claude-opus-4-7',   label: 'Profundo', price: '~$0.07', hint: 'Análisis denso' },
+];
+
+const FLAVORS = [
+  { id: 'technical', label: 'Técnico',   hint: 'Pulso matinal ligero: dónde estás hoy, atento a, una hora libre.' },
+  { id: 'executive', label: 'Ejecutivo', hint: 'Visión PM de portfolio: focus, sinergias, señales técnicas, monetización.' },
+];
 
 export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
   const [pulse, setPulse] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [generatingTier, setGeneratingTier] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState(null);
+  const [flavor, setFlavor] = useState('technical');
 
   useEffect(() => { loadLatest(); }, []);
 
@@ -28,8 +42,8 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
     }
   }
 
-  async function generate() {
-    setGenerating(true);
+  async function generate(tier) {
+    setGeneratingTier(tier.id);
     setError(null);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -37,6 +51,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
       const res = await fetch(`${apiBase}/api/briefing/daily`, {
         method: 'POST',
         headers,
+        body: JSON.stringify({ model: tier.model, flavor }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -47,7 +62,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
     } catch (e) {
       setError(e.message);
     } finally {
-      setGenerating(false);
+      setGeneratingTier(null);
     }
   }
 
@@ -60,7 +75,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
           <span className="daily-pulse-label">Pulso diario</span>
           {pulse && (
             <span className="daily-pulse-meta">
-              · {formatRelative(pulse.generatedAt)} · ${pulse.usage.costUsd}
+              · {formatAbsolute(pulse.generatedAt)} · {formatRelative(pulse.generatedAt)} · {briefingTag(pulse)} · ${pulse.usage.costUsd}
             </span>
           )}
         </div>
@@ -73,21 +88,54 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
               {expanded ? 'Ocultar' : 'Ver'}
             </button>
           )}
-          <button
-            className="daily-pulse-btn"
-            onClick={generate}
-            disabled={generating}
-          >
-            {generating ? 'Generando…' : pulse ? 'Regenerar' : 'Generar pulso'}
-          </button>
+        </div>
+      </div>
+
+      <div className="daily-pulse-controls">
+        <div className="project-briefing-flavors" role="tablist" aria-label="Tipo de pulso">
+          {FLAVORS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              role="tab"
+              aria-selected={flavor === f.id}
+              className={`project-briefing-flavor ${flavor === f.id ? 'is-active' : ''}`}
+              onClick={() => setFlavor(f.id)}
+              disabled={!!generatingTier}
+              title={f.hint}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="project-briefing-tiers">
+          {TIERS.map((tier) => {
+            const isGenerating = generatingTier === tier.id;
+            const anyGenerating = !!generatingTier;
+            return (
+              <button
+                key={tier.id}
+                type="button"
+                className={`project-briefing-tier ${tier.id === 'normal' ? 'is-primary' : 'is-secondary'}`}
+                onClick={() => generate(tier)}
+                disabled={anyGenerating}
+                title={tier.hint}
+              >
+                <span className="project-briefing-tier-label">
+                  {isGenerating ? 'Generando…' : tier.label}
+                </span>
+                <span className="project-briefing-tier-price">{tier.price}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {error && <div className="daily-pulse-error">Error: {error}</div>}
 
-      {!pulse && !generating && !error && (
+      {!pulse && !generatingTier && !error && (
         <p className="daily-pulse-empty">
-          Pulsa <strong>Generar pulso</strong> para un resumen ligero del estado del portfolio.
+          Elige <strong>tono</strong> y <strong>tier</strong> y pulsa para generar el pulso del portfolio.
         </p>
       )}
 
@@ -104,4 +152,3 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
     </div>
   );
 }
-

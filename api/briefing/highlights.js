@@ -1,17 +1,23 @@
 // api/briefing/highlights.js — agrega bloques subrayados de briefings.
 // GET /api/briefing/highlights?projectId=X → { highlights, projectId, count }
-// GET /api/briefing/highlights              → { projects: [{projectId, projectName, highlights}], totalCount }
+// GET /api/briefing/highlights              → { projects: [...], totalCount }
+//   · Incluye un grupo virtual con kind="portfolio" para subrayados del
+//     pulso diario (briefing:daily:list). Siempre primero si tiene items.
+//   · El resto son kind="project", ordenados por el timestamp del subrayado
+//     más reciente, desc.
 //
-// En ambos modos recorre las listas `briefing:project:{id}:list`, carga el
-// record de annotations (`briefing:annotations:{id}`) de cada briefing y
-// extrae los bloques con highlight=true usando el snapshot de texto.
+// Implementación: recorre la lista de briefings, carga el record de
+// annotations (`briefing:annotations:{id}`) de cada briefing y extrae los
+// bloques con highlight=true usando el snapshot de texto.
 
 import { corsHeaders } from '../_lib/auth.js';
 import { getKv, getAllProjects } from '../_lib/kv.js';
 import { getBriefingHistory, HISTORY_LIMIT } from '../_lib/briefing-helpers.js';
 
-async function extractHighlightsForProject(client, projectId) {
-  const listKey = `briefing:project:${projectId}:list`;
+const PORTFOLIO_ID = '__portfolio__';
+const PORTFOLIO_NAME = 'Portfolio';
+
+async function extractHighlightsFromList(client, listKey, { defaultFlavor = 'technical' } = {}) {
   const briefings = await getBriefingHistory(getKv, listKey, HISTORY_LIMIT);
   if (!briefings.length) return [];
 
@@ -31,7 +37,7 @@ async function extractHighlightsForProject(client, projectId) {
       highlights.push({
         briefingId: b.generatedAt,
         briefingGeneratedAt: b.generatedAt,
-        flavor: b.flavor || 'technical',
+        flavor: b.flavor || defaultFlavor,
         model: b.model,
         blockIdx: Number(idxStr),
         blockType: a.type || 'p',
@@ -65,27 +71,49 @@ export default async function handler(req, res) {
     const client = await getKv();
 
     if (projectId) {
-      const highlights = await extractHighlightsForProject(client, projectId);
+      // Modo por proyecto (o explícitamente portfolio si alguien llama con ese id).
+      if (projectId === PORTFOLIO_ID) {
+        const highlights = await extractHighlightsFromList(client, 'briefing:daily:list');
+        return res.status(200).json({ highlights, projectId: PORTFOLIO_ID, count: highlights.length });
+      }
+      const highlights = await extractHighlightsFromList(client, `briefing:project:${projectId}:list`);
       return res.status(200).json({ highlights, projectId, count: highlights.length });
     }
 
-    // Modo global: agregado por proyecto.
+    // Modo global: portfolio (daily) primero + un grupo por proyecto con subrayados.
+    const portfolioHighlights = await extractHighlightsFromList(client, 'briefing:daily:list');
+
     const projects = await getAllProjects();
-    const groups = [];
-    let total = 0;
+    const projectGroups = [];
+    let total = portfolioHighlights.length;
     for (const p of projects) {
-      const hs = await extractHighlightsForProject(client, p.id);
+      const hs = await extractHighlightsFromList(client, `briefing:project:${p.id}:list`);
       if (!hs.length) continue;
-      groups.push({ projectId: p.id, projectName: p.name, highlights: hs });
+      projectGroups.push({
+        projectId: p.id,
+        projectName: p.name,
+        kind: 'project',
+        highlights: hs,
+      });
       total += hs.length;
     }
 
-    // Orden: grupos por el timestamp del subrayado más reciente, desc.
-    groups.sort((a, b) => {
+    projectGroups.sort((a, b) => {
       const ta = a.highlights[0]?.briefingGeneratedAt || '';
       const tb = b.highlights[0]?.briefingGeneratedAt || '';
       return tb.localeCompare(ta);
     });
+
+    const groups = [];
+    if (portfolioHighlights.length) {
+      groups.push({
+        projectId: PORTFOLIO_ID,
+        projectName: PORTFOLIO_NAME,
+        kind: 'portfolio',
+        highlights: portfolioHighlights,
+      });
+    }
+    groups.push(...projectGroups);
 
     return res.status(200).json({ projects: groups, totalCount: total });
   } catch (err) {
