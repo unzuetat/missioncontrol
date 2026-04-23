@@ -231,7 +231,85 @@ function TechStackBadges({ techStack }) {
   );
 }
 
-function ProjectCard({ project, onClick, isSelected, t, lang }) {
+function StatusBadge({ icon, count, title, color }) {
+  return (
+    <span
+      title={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 3,
+        padding: "1px 6px",
+        borderRadius: 10,
+        fontSize: 10,
+        fontFamily: "'JetBrains Mono', monospace",
+        fontWeight: 600,
+        background: color + "18",
+        border: `1px solid ${color}40`,
+        color: color,
+        lineHeight: 1.4,
+        cursor: "help",
+      }}
+    >
+      <span style={{ fontSize: 11 }}>{icon}</span>
+      {count}
+    </span>
+  );
+}
+
+function StatusBadges({ stats }) {
+  if (!stats) return null;
+  const badges = [];
+  // commits en test listos para prod (la urgente)
+  if (stats.aheadProd && stats.aheadProd > 0) {
+    badges.push(
+      <StatusBadge
+        key="prod"
+        icon="⬆"
+        count={stats.aheadProd}
+        color="#F59E0B"
+        title={`${stats.aheadProd} commit(s) en test listos para merge a prod`}
+      />
+    );
+  }
+  // PRs abiertos
+  if (stats.openPrs && stats.openPrs > 0) {
+    const details = stats.openPrDetails && stats.openPrDetails.length
+      ? "\n" + stats.openPrDetails.map(p => `#${p.number} ${p.title}`).join("\n")
+      : "";
+    badges.push(
+      <StatusBadge
+        key="pr"
+        icon="⇄"
+        count={stats.openPrs}
+        color="#3B82F6"
+        title={`${stats.openPrs} PR(s) abierto(s)${details}`}
+      />
+    );
+  }
+  // trabajo local sin publicar (agregado de máquinas)
+  if (stats.machines && stats.machines.length > 0) {
+    const totalAhead = stats.machines.reduce((a, m) => a + (m.ahead || 0), 0);
+    const totalUncommitted = stats.machines.reduce((a, m) => a + (m.uncommitted || 0), 0);
+    const count = stats.machines.length;
+    const detail = stats.machines
+      .map(m => `${m.id}: ${m.ahead} sin push · ${m.uncommitted} sin commit`)
+      .join("\n");
+    badges.push(
+      <StatusBadge
+        key="local"
+        icon="◎"
+        count={count}
+        color="#A78BFA"
+        title={`Trabajo local en ${count} máquina(s)\n${detail}\n\nTotal: ${totalAhead} commits sin push · ${totalUncommitted} ficheros sin commit`}
+      />
+    );
+  }
+  if (badges.length === 0) return null;
+  return <div style={{ display: "flex", gap: 4, alignItems: "center" }}>{badges}</div>;
+}
+
+function ProjectCard({ project, stats, onClick, isSelected, t, lang }) {
   const [hovered, setHovered] = useState(false);
   const lc = project.lastCrumb;
 
@@ -276,7 +354,10 @@ function ProjectCard({ project, onClick, isSelected, t, lang }) {
           </span>
           <ProjectLinks project={project} />
         </div>
-        <DeploymentBadges project={project} t={t} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <StatusBadges stats={stats} />
+          <DeploymentBadges project={project} t={t} />
+        </div>
       </div>
 
       {lc && (
@@ -1194,6 +1275,7 @@ function IdeasTestingView({ type, projects, onToggleDone, onEditCrumb, t, lang }
 // --- MAIN APP ---
 export default function MissionControl() {
   const [projects, setProjects] = useState([]);
+  const [projectsStats, setProjectsStats] = useState({});
   const [recentCrumbs, setRecentCrumbs] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectCrumbs, setProjectCrumbs] = useState([]);
@@ -1360,9 +1442,21 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
     }
   }, []);
 
+  const loadProjectsStats = useCallback(async () => {
+    try {
+      const data = await api.getProjectsStats();
+      setProjectsStats(data.stats || {});
+    } catch (e) {
+      // silencioso — los badges son aditivos, no bloquean la UI
+      console.warn("Stats not available:", e?.error || e);
+    }
+  }, []);
+
   useEffect(() => {
     Promise.all([loadProjects(), loadRecentCrumbs()]).finally(() => setLoading(false));
-  }, [loadProjects, loadRecentCrumbs]);
+    // stats en paralelo, sin bloquear initial render
+    loadProjectsStats();
+  }, [loadProjects, loadRecentCrumbs, loadProjectsStats]);
 
   useEffect(() => {
     localStorage.setItem("mc-lang", lang);
@@ -1757,6 +1851,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   <ProjectCard
                     key={project.id}
                     project={project}
+                    stats={projectsStats[project.id]}
                     onClick={() => handleSelectProject(project)}
                     isSelected={selectedProject?.id === project.id}
                     t={t}
