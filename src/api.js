@@ -12,6 +12,7 @@ function request(path, options = {}) {
 
 export const api = {
   getProjects: () => request('/projects'),
+  getProjectsStats: (force) => request(`/projects/stats${force ? '?refresh=1' : ''}`),
   createProject: (data) => request('/projects', { method: 'POST', body: JSON.stringify(data) }),
   updateProject: (id, data) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProject: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
