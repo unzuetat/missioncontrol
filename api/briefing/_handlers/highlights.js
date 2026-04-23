@@ -10,9 +10,9 @@
 // annotations (`briefing:annotations:{id}`) de cada briefing y extrae los
 // bloques con highlight=true usando el snapshot de texto.
 
-import { corsHeaders } from '../_lib/auth.js';
-import { getKv, getAllProjects } from '../_lib/kv.js';
-import { getBriefingHistory, HISTORY_LIMIT } from '../_lib/briefing-helpers.js';
+import { corsHeaders } from '../../_lib/auth.js';
+import { getKv, getAllProjects } from '../../_lib/kv.js';
+import { getBriefingHistory, HISTORY_LIMIT } from '../../_lib/briefing-helpers.js';
 
 const PORTFOLIO_ID = '__portfolio__';
 const PORTFOLIO_NAME = 'Portfolio';

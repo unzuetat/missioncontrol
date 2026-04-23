@@ -2,9 +2,9 @@
 // GET /api/briefing/history?kind=daily
 // GET /api/briefing/history?kind=project&projectId=X
 
-import { corsHeaders } from '../_lib/auth.js';
-import { getKv } from '../_lib/kv.js';
-import { getBriefingHistory, HISTORY_LIMIT } from '../_lib/briefing-helpers.js';
+import { corsHeaders } from '../../_lib/auth.js';
+import { getKv } from '../../_lib/kv.js';
+import { getBriefingHistory, HISTORY_LIMIT } from '../../_lib/briefing-helpers.js';
 
 export default async function handler(req, res) {
   Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));

@@ -5,8 +5,8 @@
 //
 // blocks es un mapa { [blockIdx: string]: { highlight?, strike?, comment? } }
 
-import { checkAuth, corsHeaders } from '../_lib/auth.js';
-import { getKv } from '../_lib/kv.js';
+import { checkAuth, corsHeaders } from '../../_lib/auth.js';
+import { getKv } from '../../_lib/kv.js';
 
 const KEY_PREFIX = 'briefing:annotations:';
 

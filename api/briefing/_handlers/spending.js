@@ -2,9 +2,9 @@
 // GET /api/briefing/spending           → todo el portfolio
 // GET /api/briefing/spending?projectId=X → solo project-briefings de ese proyecto
 
-import { corsHeaders } from '../_lib/auth.js';
-import { getKv } from '../_lib/kv.js';
-import { getSpending } from '../_lib/briefing-helpers.js';
+import { corsHeaders } from '../../_lib/auth.js';
+import { getKv } from '../../_lib/kv.js';
+import { getSpending } from '../../_lib/briefing-helpers.js';
 
 export default async function handler(req, res) {
   Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));
