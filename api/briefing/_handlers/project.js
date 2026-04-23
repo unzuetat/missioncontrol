@@ -5,13 +5,13 @@
 // GET ?projectId=X → devuelve el último briefing de ese proyecto
 
 import Anthropic from '@anthropic-ai/sdk';
-import { checkAuth, corsHeaders } from '../_lib/auth.js';
+import { checkAuth, corsHeaders } from '../../_lib/auth.js';
 import {
   getProjectById,
   getProjectCrumbs,
   getProjectFiles,
   getKv,
-} from '../_lib/kv.js';
+} from '../../_lib/kv.js';
 import {
   computeCost,
   extractMarkdown,
@@ -24,7 +24,7 @@ import {
   pushBriefing,
   getLatestBriefing,
   LIMITS,
-} from '../_lib/briefing-helpers.js';
+} from '../../_lib/briefing-helpers.js';
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const ALLOWED_MODELS = new Set([
