@@ -87,6 +87,8 @@ export default async function handler(req, res) {
     const projectGroups = [];
     let total = portfolioHighlights.length;
     for (const p of projects) {
+      // Proyectos archivados fuera de la vista agregada (sí siguen disponibles vía ?projectId).
+      if (p.status === 'archivado' || p.status === 'archived') continue;
       const hs = await extractHighlightsFromList(client, `briefing:project:${p.id}:list`);
       if (!hs.length) continue;
       projectGroups.push({

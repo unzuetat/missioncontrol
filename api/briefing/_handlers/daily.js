@@ -96,7 +96,9 @@ export default async function handler(req, res) {
       }
 
       const startedAt = Date.now();
-      const projects = await getAllProjects();
+      const allProjects = await getAllProjects();
+      // Excluir archivados: no se envían al LLM ni cuentan en el contexto.
+      const projects = allProjects.filter((p) => p.status !== 'archivado' && p.status !== 'archived');
       const aggregated = await buildContext(projects, ctx);
 
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
