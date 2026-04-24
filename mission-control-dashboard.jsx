@@ -317,6 +317,35 @@ function StatusBadges({ stats }) {
   return <div style={{ display: "flex", gap: 4, alignItems: "center" }}>{badges}</div>;
 }
 
+function ActivityHeatmap({ activity, color, days = 30 }) {
+  // Renderiza los últimos N días (izquierda = hace N días, derecha = hoy).
+  const cells = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86400000);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const count = activity && activity[key] ? activity[key] : 0;
+    cells.push({ key, count, date: d });
+  }
+  const opacityFor = (c) => (c === 0 ? 0.08 : c === 1 ? 0.38 : c === 2 ? 0.68 : 1);
+  return (
+    <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+      {cells.map((cell) => (
+        <span
+          key={cell.key}
+          title={`${cell.key}: ${cell.count} ${cell.count === 1 ? "miga" : "migas"}`}
+          style={{
+            width: 6, height: 6, borderRadius: 1,
+            background: color,
+            opacity: opacityFor(cell.count),
+            flexShrink: 0,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ProjectCard({ project, stats, onClick, isSelected, t, lang }) {
   const [hovered, setHovered] = useState(false);
   const lc = project.lastCrumb;
@@ -390,6 +419,15 @@ function ProjectCard({ project, stats, onClick, isSelected, t, lang }) {
           <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>
             {timeAgo(lc.timestamp, lang)}
           </span>
+        </div>
+      )}
+
+      {stats?.activity && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+          <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", textTransform: "uppercase", flexShrink: 0 }}>
+            30d
+          </span>
+          <ActivityHeatmap activity={stats.activity} color={project.color} />
         </div>
       )}
     </button>
@@ -710,82 +748,108 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   );
 }
 
-function GlobalTimeline({ crumbs, t, lang, onToggleDone }) {
+function GlobalTimeline({ crumbs, t, lang }) {
+  const [expandedDays, setExpandedDays] = useState({});
+
+  // Agrupar por día (YYYY-MM-DD) en zona local del navegador.
+  const byDay = {};
+  for (const c of crumbs) {
+    const ts = Date.parse(c.timestamp);
+    if (!ts) continue;
+    const d = new Date(ts);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!byDay[key]) byDay[key] = [];
+    byDay[key].push(c);
+  }
+  const sortedKeys = Object.keys(byDay).sort().reverse();
+
+  const dayLabel = (key) => {
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const yest = new Date(now.getTime() - 86400000);
+    const yestKey = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, "0")}-${String(yest.getDate()).padStart(2, "0")}`;
+    if (key === todayKey) return t("today");
+    if (key === yestKey) return t("yesterday");
+    const d = new Date(key + "T00:00:00");
+    return d.toLocaleDateString(lang === "es" ? "es-ES" : "en-US", { weekday: "short", day: "numeric", month: "short" });
+  };
+
+  const toggle = (key) => setExpandedDays((s) => ({ ...s, [key]: !s[key] }));
+
+  if (sortedKeys.length === 0) {
+    return (
+      <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", padding: "8px 0" }}>
+        {t("noActivity")}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {crumbs.map((crumb, i) => {
-        const isIdea = crumb.isIdea === "true";
-        const isTest = crumb.isTest === "true";
-        const isDone = crumb.isDone === "true";
-        const isSpecial = isIdea || isTest;
-        const accentColor = isIdea ? "#F59E0B" : isTest ? "#8B5CF6" : null;
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {sortedKeys.map((key) => {
+        const items = byDay[key];
+        const isOpen = !!expandedDays[key];
+        // Paleta de colores únicos de ese día, para un pequeño indicador.
+        const colors = [...new Set(items.map((c) => c.projectColor).filter(Boolean))].slice(0, 5);
         return (
-          <div
-            key={crumb.id || i}
-            style={{
-              display: "flex",
-              gap: 12,
-              padding: "10px 0",
-              borderBottom: i < crumbs.length - 1 ? "1px solid var(--border-subtle)" : "none",
-              animation: `fadeSlideIn 0.3s ease ${i * 0.04}s both`,
-            }}
-          >
-            <div
+          <div key={key}>
+            <button
+              onClick={() => toggle(key)}
               style={{
-                width: 3, borderRadius: 2,
-                background: accentColor || (crumb.projectColor || "var(--text-muted)"),
-                flexShrink: 0, opacity: isSpecial ? 1 : 0.6,
+                all: "unset", cursor: "pointer", width: "100%", boxSizing: "border-box",
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "7px 2px",
+                borderBottom: "1px solid var(--border-subtle)",
               }}
-            />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
-                {isIdea && (
-                  <span style={{
-                    fontSize: 8, padding: "1px 4px", borderRadius: 2,
-                    background: "#F59E0B20", color: "#F59E0B",
-                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
-                    border: "1px solid #F59E0B40",
-                  }}>💡</span>
-                )}
-                {isTest && (
-                  <span style={{
-                    fontSize: 8, padding: "1px 4px", borderRadius: 2,
-                    background: "#8B5CF620", color: "#8B5CF6",
-                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
-                    border: "1px solid #8B5CF640",
-                  }}>🧪</span>
-                )}
-                <span style={{
-                  fontSize: 12,
-                  color: isDone ? (accentColor ? accentColor + "90" : "var(--text-muted)") : (accentColor || "var(--text-secondary)"),
-                  fontWeight: isSpecial ? 600 : 400,
-                  textDecoration: isDone ? "line-through" : "none",
-                }}>
-                  {crumb.title}
-                </span>
-                <SourceBadge source={crumb.source} compact />
-                {isSpecial && onToggleDone && (
-                  <button
-                    onClick={() => onToggleDone(crumb.id, !isDone)}
-                    style={{
-                      all: "unset", cursor: "pointer", fontSize: 9,
-                      color: isDone ? "#2D8A4E" : "var(--text-muted)",
-                      fontFamily: "'JetBrains Mono', monospace",
-                    }}
-                  >
-                    {isDone ? "✓" : "○"}
-                  </button>
-                )}
+            >
+              <span style={{ fontSize: 10, color: "var(--text-muted)", width: 10 }}>
+                {isOpen ? "▾" : "▸"}
+              </span>
+              <span style={{
+                fontSize: 11, color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: "0.04em", textTransform: "capitalize", flex: 1,
+              }}>
+                {dayLabel(key)}
+              </span>
+              <div style={{ display: "flex", gap: 2 }}>
+                {colors.map((c, i) => (
+                  <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: c, opacity: 0.7 }} />
+                ))}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 10, color: crumb.projectColor || "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", opacity: 0.8 }}>
-                  {crumb.projectName || ""}
-                </span>
-                <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
-                  {timeAgo(crumb.timestamp, lang)}
-                </span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", minWidth: 16, textAlign: "right" }}>
+                {items.length}
+              </span>
+            </button>
+            {isOpen && (
+              <div style={{ padding: "6px 0 10px 18px", display: "flex", flexDirection: "column", gap: 5 }}>
+                {items.map((crumb) => {
+                  const isIdea = crumb.isIdea === "true";
+                  const isTest = crumb.isTest === "true";
+                  const isDone = crumb.isDone === "true";
+                  return (
+                    <div key={crumb.id} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                      <span style={{
+                        width: 5, height: 5, borderRadius: "50%",
+                        background: crumb.projectColor || "var(--text-muted)",
+                        opacity: 0.8, flexShrink: 0, marginTop: 6,
+                      }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 11, lineHeight: 1.4,
+                          color: isDone ? "var(--text-muted)" : "var(--text-secondary)",
+                          textDecoration: isDone ? "line-through" : "none",
+                        }}>
+                          {isIdea && "💡 "}{isTest && "🧪 "}{crumb.title}
+                        </div>
+                        <div style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
+                          {crumb.projectName}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
         );
       })}
@@ -1478,10 +1542,11 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
     localStorage.setItem("mc-show-archived", showArchived ? "1" : "0");
   }, [showArchived]);
 
-  // Proyectos visibles según el toggle. Archivados siempre al final para que salten menos a la vista.
+  // Toggle exclusivo: o ves los activos o ves los archivados.
   const visibleProjects = showArchived
-    ? [...projects].sort((a, b) => Number(isArchivedProject(a)) - Number(isArchivedProject(b)))
+    ? projects.filter(isArchivedProject)
     : projects.filter((p) => !isArchivedProject(p));
+  const activeCount = projects.filter((p) => !isArchivedProject(p)).length;
   const archivedCount = projects.filter(isArchivedProject).length;
 
   const handleSelectProject = async (project) => {
@@ -1767,7 +1832,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
           >
             {view === "detail"
               ? selectedProject?.description
-              : `${visibleProjects.length} ${t("projects").toLowerCase()} · 4 ${t("subtitle")}`}
+              : `${activeCount} ${t("activeProjects")} · ${archivedCount} ${t("archivedProjects")}`}
           </p>
         </header>
 
@@ -1782,7 +1847,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
         {!loading && view === "grid" && (
           <>
           <DailyPulseBanner apiBase={API_BASE} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 32, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 28, alignItems: "start" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <div style={{
@@ -1984,7 +2049,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
           <div
             ref={detailRef}
             style={{
-              display: "grid", gridTemplateColumns: "1fr 340px", gap: 32,
+              display: "grid", gridTemplateColumns: "1fr 280px", gap: 28,
               alignItems: "start", animation: "fadeSlideIn 0.3s ease",
             }}
           >
