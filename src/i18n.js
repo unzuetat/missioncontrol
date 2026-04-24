@@ -84,6 +84,12 @@ const strings = {
     allProjects: 'Todos los proyectos',
     pending: 'pendientes',
     done: 'hechas',
+    archive: 'Archivar',
+    unarchive: 'Desarchivar',
+    archived: 'ARCHIVADO',
+    showArchived: 'Mostrar archivados',
+    hideArchived: 'Ocultar archivados',
+    archiveConfirm: '¿Archivar este proyecto? Dejará de aparecer en briefings generales y vistas por defecto. Podrás desarchivarlo cuando quieras.',
   },
   en: {
     projects: 'Projects',
@@ -170,6 +176,12 @@ const strings = {
     allProjects: 'All projects',
     pending: 'pending',
     done: 'done',
+    archive: 'Archive',
+    unarchive: 'Unarchive',
+    archived: 'ARCHIVED',
+    showArchived: 'Show archived',
+    hideArchived: 'Hide archived',
+    archiveConfirm: 'Archive this project? It will stop appearing in general briefings and default views. You can unarchive it anytime.',
   },
 };
 

@@ -30,7 +30,9 @@ async function machinesForProject(projectId) {
 }
 
 async function buildStats() {
-  const projects = await getAllProjects();
+  const all = await getAllProjects();
+  // Archivados no gastan llamadas a GitHub.
+  const projects = all.filter((p) => p.status !== 'archivado' && p.status !== 'archived');
   const entries = await Promise.all(projects.map(async (p) => {
     const gh = parseGithubUrl(p.repoUrl);
     const [prodVsTest, prs, machines] = await Promise.all([

@@ -85,10 +85,18 @@ function SourceBadge({ source, compact = false }) {
   );
 }
 
+function isArchivedProject(p) {
+  return p?.status === "archivado" || p?.status === "archived";
+}
+
 function StatusDot({ status, color, t }) {
+  const isArchived = status === "archivado" || status === "archived";
   const isPaused = status === "pausado";
   const isIdea = status === "idea";
-  const label = status === "desarrollo" ? t("development") : status === "pausado" ? t("paused") : t("idea");
+  const dim = isArchived || isPaused || isIdea;
+  const label = isArchived ? t("archived") : status === "desarrollo" ? t("development") : status === "pausado" ? t("paused") : t("idea");
+  const dotColor = isArchived ? "#666" : isPaused ? "#555" : isIdea ? "#666" : color;
+  const textColor = isArchived ? "#888" : isPaused ? "#666" : isIdea ? "#888" : color;
   return (
     <span
       style={{
@@ -97,7 +105,7 @@ function StatusDot({ status, color, t }) {
         gap: 6,
         fontSize: 10,
         fontFamily: "'JetBrains Mono', monospace",
-        color: isPaused ? "#666" : isIdea ? "#888" : color,
+        color: textColor,
         textTransform: "uppercase",
         letterSpacing: "0.1em",
       }}
@@ -107,9 +115,9 @@ function StatusDot({ status, color, t }) {
           width: 7,
           height: 7,
           borderRadius: "50%",
-          background: isPaused ? "#555" : isIdea ? "#666" : color,
-          boxShadow: isPaused || isIdea ? "none" : `0 0 8px ${color}80`,
-          animation: !isPaused && !isIdea ? "pulse 2s ease-in-out infinite" : "none",
+          background: dotColor,
+          boxShadow: dim ? "none" : `0 0 8px ${color}80`,
+          animation: dim ? "none" : "pulse 2s ease-in-out infinite",
         }}
       />
       {label}
@@ -312,6 +320,7 @@ function StatusBadges({ stats }) {
 function ProjectCard({ project, stats, onClick, isSelected, t, lang }) {
   const [hovered, setHovered] = useState(false);
   const lc = project.lastCrumb;
+  const archived = isArchivedProject(project);
 
   return (
     <button
@@ -336,6 +345,8 @@ function ProjectCard({ project, stats, onClick, isSelected, t, lang }) {
         position: "relative",
         overflow: "hidden",
         boxSizing: "border-box",
+        opacity: archived ? 0.5 : 1,
+        filter: archived ? "grayscale(40%)" : "none",
       }}
     >
       <div
@@ -1287,6 +1298,7 @@ export default function MissionControl() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingProject, setEditingProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showArchived, setShowArchived] = useState(() => localStorage.getItem("mc-show-archived") === "1");
   const [copied, setCopied] = useState(false);
   const [contextCopied, setContextCopied] = useState(false);
   const detailRef = useRef(null);
@@ -1462,6 +1474,16 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
     localStorage.setItem("mc-lang", lang);
   }, [lang]);
 
+  useEffect(() => {
+    localStorage.setItem("mc-show-archived", showArchived ? "1" : "0");
+  }, [showArchived]);
+
+  // Proyectos visibles según el toggle. Archivados siempre al final para que salten menos a la vista.
+  const visibleProjects = showArchived
+    ? [...projects].sort((a, b) => Number(isArchivedProject(a)) - Number(isArchivedProject(b)))
+    : projects.filter((p) => !isArchivedProject(p));
+  const archivedCount = projects.filter(isArchivedProject).length;
+
   const handleSelectProject = async (project) => {
     setSelectedProject(project);
     setView("detail");
@@ -1551,6 +1573,16 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
     await api.deleteProject(selectedProject.id);
     await loadProjects();
     handleBack();
+  };
+
+  const handleToggleArchive = async () => {
+    if (!selectedProject) return;
+    const archived = isArchivedProject(selectedProject);
+    if (!archived && !confirm(t("archiveConfirm"))) return;
+    const nextStatus = archived ? "desarrollo" : "archivado";
+    await api.updateProject(selectedProject.id, { status: nextStatus });
+    await loadProjects();
+    setSelectedProject({ ...selectedProject, status: nextStatus });
   };
 
   const handleImport = async (data) => {
@@ -1735,7 +1767,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
           >
             {view === "detail"
               ? selectedProject?.description
-              : `${projects.length} ${t("projects").toLowerCase()} · 4 ${t("subtitle")}`}
+              : `${visibleProjects.length} ${t("projects").toLowerCase()} · 4 ${t("subtitle")}`}
           </p>
         </header>
 
@@ -1828,6 +1860,23 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   >
                     📌 {t("allHighlights")}
                   </button>
+                  {archivedCount > 0 && (
+                    <button
+                      onClick={() => setShowArchived((v) => !v)}
+                      title={showArchived ? t("hideArchived") : t("showArchived")}
+                      style={{
+                        all: "unset", cursor: "pointer", fontSize: 11,
+                        padding: "5px 12px", borderRadius: 6,
+                        background: showArchived ? "#6B728028" : "#6B728010",
+                        border: `1px solid ${showArchived ? "#6B728060" : "#6B728025"}`,
+                        color: showArchived ? "#9CA3AF" : "#6B7280",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                      }}
+                    >
+                      📦 {archivedCount}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1847,7 +1896,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
-                {projects.map((project) => (
+                {visibleProjects.map((project) => (
                   <ProjectCard
                     key={project.id}
                     project={project}
@@ -1891,7 +1940,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
             type="idea"
             crumbs={recentCrumbs}
             allCrumbs={recentCrumbs}
-            projects={projects}
+            projects={visibleProjects}
             onToggleDone={handleToggleDone}
             onEditCrumb={handleEditCrumb}
             t={t}
@@ -1905,7 +1954,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
             type="test"
             crumbs={recentCrumbs}
             allCrumbs={recentCrumbs}
-            projects={projects}
+            projects={visibleProjects}
             onToggleDone={handleToggleDone}
             onEditCrumb={handleEditCrumb}
             t={t}
@@ -1915,7 +1964,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
 
         {/* BRIEFINGS VIEW */}
         {!loading && view === "briefings" && (
-          <BriefingsView apiBase={API_BASE} t={t} projects={projects} />
+          <BriefingsView apiBase={API_BASE} t={t} projects={visibleProjects} />
         )}
 
         {/* HIGHLIGHTS VIEW */}
@@ -2104,7 +2153,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 );
               })()}
 
-              {/* Edit/Delete buttons */}
+              {/* Edit/Archive/Delete buttons */}
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <button
                   onClick={() => setEditingProject(!editingProject)}
@@ -2117,6 +2166,18 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   }}
                 >
                   {t("editProject")}
+                </button>
+                <button
+                  onClick={handleToggleArchive}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 11,
+                    padding: "4px 10px", borderRadius: 4,
+                    border: "1px solid #6B728050",
+                    color: "#6B7280", fontFamily: "'JetBrains Mono', monospace",
+                    textTransform: "uppercase", letterSpacing: "0.05em",
+                  }}
+                >
+                  {isArchivedProject(selectedProject) ? `📦 ${t("unarchive")}` : `📦 ${t("archive")}`}
                 </button>
                 <button
                   onClick={handleDeleteProject}
