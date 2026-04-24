@@ -90,6 +90,11 @@ const strings = {
     showArchived: 'Mostrar archivados',
     hideArchived: 'Ocultar archivados',
     archiveConfirm: '¿Archivar este proyecto? Dejará de aparecer en briefings generales y vistas por defecto. Podrás desarchivarlo cuando quieras.',
+    activeProjects: 'activos',
+    archivedProjects: 'archivados',
+    today: 'Hoy',
+    yesterday: 'Ayer',
+    noActivity: 'Sin actividad reciente',
   },
   en: {
     projects: 'Projects',
@@ -182,6 +187,11 @@ const strings = {
     showArchived: 'Show archived',
     hideArchived: 'Hide archived',
     archiveConfirm: 'Archive this project? It will stop appearing in general briefings and default views. You can unarchive it anytime.',
+    activeProjects: 'active',
+    archivedProjects: 'archived',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    noActivity: 'No recent activity',
   },
 };
 

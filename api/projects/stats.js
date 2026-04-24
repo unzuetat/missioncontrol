@@ -2,8 +2,9 @@ import { getAllProjects, getProjectCrumbs, getKv } from '../_lib/kv.js';
 import { checkAuth, setCors } from '../_lib/auth.js';
 import { parseGithubUrl, compareBranches, openPullRequests } from '../_lib/github.js';
 
-const CACHE_KEY = 'stats:projects:v1';
+const CACHE_KEY = 'stats:projects:v2';
 const CACHE_TTL_SECONDS = 300;
+const ACTIVITY_DAYS = 30;
 
 function parseAgentTitle(title) {
   const uncommittedM = /(\d+)\s*cambios locales/.exec(title || '');
@@ -14,8 +15,7 @@ function parseAgentTitle(title) {
   };
 }
 
-async function machinesForProject(projectId) {
-  const crumbs = await getProjectCrumbs(projectId, 30);
+function machinesFromCrumbs(crumbs) {
   const byMachine = new Map();
   for (const c of crumbs) {
     const src = c.source || '';
@@ -29,24 +29,38 @@ async function machinesForProject(projectId) {
   return [...byMachine.values()];
 }
 
+function activityFromCrumbs(crumbs, days = ACTIVITY_DAYS) {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const out = {};
+  for (const c of crumbs) {
+    const ts = Date.parse(c.timestamp);
+    if (!ts || ts < cutoff) continue;
+    const key = new Date(ts).toISOString().slice(0, 10); // YYYY-MM-DD
+    out[key] = (out[key] || 0) + 1;
+  }
+  return out;
+}
+
 async function buildStats() {
   const all = await getAllProjects();
   // Archivados no gastan llamadas a GitHub.
   const projects = all.filter((p) => p.status !== 'archivado' && p.status !== 'archived');
   const entries = await Promise.all(projects.map(async (p) => {
     const gh = parseGithubUrl(p.repoUrl);
-    const [prodVsTest, prs, machines] = await Promise.all([
+    const [prodVsTest, prs, crumbs] = await Promise.all([
       gh && p.testBranch && p.prodBranch && p.testBranch !== p.prodBranch
         ? compareBranches(gh.owner, gh.repo, p.prodBranch, p.testBranch).catch(() => null)
         : null,
       gh ? openPullRequests(gh.owner, gh.repo).catch(() => null) : null,
-      machinesForProject(p.id).catch(() => []),
+      // 100 crumbs cubre holgado 30 días para cualquier proyecto.
+      getProjectCrumbs(p.id, 100).catch(() => []),
     ]);
     return [p.id, {
       aheadProd: prodVsTest ? prodVsTest.ahead : null,
       openPrs: prs ? prs.count : null,
       openPrDetails: prs ? prs.items : null,
-      machines,
+      machines: machinesFromCrumbs(crumbs),
+      activity: activityFromCrumbs(crumbs),
     }];
   }));
   return Object.fromEntries(entries);
