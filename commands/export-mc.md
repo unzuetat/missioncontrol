@@ -13,7 +13,7 @@ Cinco pasos en este orden: **detectar proyecto** (paso 0, estricto) → actualiz
 ## 0 · Detectar el proyecto (regla estricta — preguntar ante cualquier duda)
 
 1. Ejecuta `git remote get-url origin` en el cwd. Si falla (no es repo git), `remoteUrl = null`.
-2. Llama a `mc_list_projects`.
+2. Llama a `mc_list_projects` con `{ minimal: true }` (omite `lastCrumb` de cada proyecto y deja la respuesta ~10× más pequeña — para la detección no hace falta más).
 3. Normaliza `remoteUrl` y cada `repoUrl` de MC: minúsculas, sin `.git`, sin `http(s)://`, sin `www.`. Ej.: `https://github.com/unzuetat/missioncontrol.git` → `github.com/unzuetat/missioncontrol`.
 
 **Auto-usar un proyecto SIN preguntar — solo si se cumplen LAS DOS condiciones:**
@@ -34,8 +34,8 @@ No tengo claro qué proyecto de MC corresponde a esta carpeta.
   git remote: <url o 'sin remoto'>
 
 Candidatos:
-  - <id>: <name> (repoUrl: <url>, último crumb: <timestamp>)
-  - <id>: <name> (repoUrl: <url>, último crumb: <timestamp>)
+  - <id>: <name> (repoUrl: <url>)
+  - <id>: <name> (repoUrl: <url>)
 
 ¿Cuál uso? Responde con el id, o 'nuevo' si no existe y quieres crearlo.
 ```
@@ -78,7 +78,7 @@ Genera un CONTEXT.md con estas secciones:
 - **Despliegues** (tabla: entorno / URL / rama para test y prod)
 - **URLs** (repo, recursos externos)
 
-Si ya hay un CONTEXT.md previo (mira con `mc_get_file` si quieres basarte en él), **actualízalo integrando lo nuevo** en vez de sobreescribir a ciegas.
+Si ya hay un CONTEXT.md previo (mira con `mc_get_file` si la sesión actual no lo tiene en contexto — p.ej. tras un `/clear`), **actualízalo integrando lo nuevo** en vez de sobreescribir a ciegas. Si vienes de una sesión que ya lo cargó (típico tras `/import-mc` al inicio), úsalo del contexto y no vuelvas a pedirlo.
 
 Sube con `mc_upsert_file` — projectId + `"CONTEXT.md"` + content. El tool hace create-or-update por ti.
 

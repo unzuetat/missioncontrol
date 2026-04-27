@@ -65,9 +65,20 @@ const tools = [
   // ───── LECTURA (pull desde cualquier Claude) ─────
   {
     name: 'mc_list_projects',
-    description: 'Lista todos los proyectos de Mission Control con sus URLs, ramas y último crumb. Usar para descubrir el projectId correcto al exportar una sesión o para ver qué está en marcha.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    handler: async () => ok(await mcFetch('/api/projects')),
+    description: 'Lista todos los proyectos de Mission Control. Recomendado: minimal=true en /export-mc y /import-mc — devuelve metadatos (id, name, status, repoUrl, URLs y ramas test/prod, color, techStack) sin lastCrumb (que es lo que pesa, ~25 KB → ~3 KB). Sin minimal incluye lastCrumb completo de cada proyecto.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        minimal: { type: 'boolean', description: 'Si true, omite el lastCrumb de cada proyecto. Mantiene metadatos suficientes para detectar y mostrar URLs/ramas. Default false.' },
+      },
+      additionalProperties: false,
+    },
+    handler: async ({ minimal } = {}) => {
+      const data = await mcFetch('/api/projects');
+      if (!minimal) return ok(data);
+      const projects = (data.projects || []).map(({ lastCrumb, ...rest }) => rest);
+      return ok({ projects });
+    },
   },
   {
     name: 'mc_get_project',
@@ -90,12 +101,24 @@ const tools = [
   },
   {
     name: 'mc_get_crumbs',
-    description: 'Crumbs (notas de actividad) recientes. Sin projectId: últimos 20 globales. Con projectId: todos los del proyecto ordenados por fecha desc.',
+    description: 'Crumbs (notas de actividad) recientes. Sin projectId: últimos 20 globales. Con projectId: todos los del proyecto ordenados por fecha desc. limit recorta a los N más recientes; summary=true omite el body (solo título+timestamp+source+flags) — útil para ver "los últimos 3 títulos" sin cargar 40 KB de bodies.',
     inputSchema: {
       type: 'object',
-      properties: { projectId: { type: 'string', description: 'Opcional. Si se omite, devuelve los 20 crumbs más recientes de todos los proyectos.' } },
+      properties: {
+        projectId: { type: 'string', description: 'Opcional. Si se omite, devuelve los 20 crumbs más recientes de todos los proyectos.' },
+        limit: { type: 'number', description: 'Opcional. Recorta la lista a los N crumbs más recientes.' },
+        summary: { type: 'boolean', description: 'Opcional. Si true, omite el campo body — devuelve solo metadatos. Default false.' },
+      },
     },
-    handler: async ({ projectId } = {}) => ok(await mcFetch('/api/crumbs', { query: projectId ? { projectId } : {} })),
+    handler: async ({ projectId, limit, summary } = {}) => {
+      const data = await mcFetch('/api/crumbs', { query: projectId ? { projectId } : {} });
+      let crumbs = data.crumbs || [];
+      if (typeof limit === 'number' && limit > 0) crumbs = crumbs.slice(0, limit);
+      if (summary) {
+        crumbs = crumbs.map(({ body, ...rest }) => rest);
+      }
+      return ok({ ...data, crumbs });
+    },
   },
   {
     name: 'mc_get_files',

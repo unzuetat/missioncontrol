@@ -11,7 +11,7 @@ Usa las tools nativas `mc_*` del MCP server para cargar el estado guardado del p
 ## 0 · Detectar el proyecto (regla estricta — preguntar ante cualquier duda)
 
 1. Ejecuta `git remote get-url origin` en el cwd. Si falla (no es repo git), `remoteUrl = null`.
-2. Llama a `mc_list_projects`.
+2. Llama a `mc_list_projects` con `{ minimal: true }` (omite `lastCrumb` de cada proyecto — ~10× menos payload, suficiente para detectar y para sacar URLs/ramas del proyecto matcheado).
 3. Normaliza `remoteUrl` y cada `repoUrl` de MC: minúsculas, sin `.git`, sin `http(s)://`, sin `www.`. Ej.: `https://github.com/unzuetat/missioncontrol.git` → `github.com/unzuetat/missioncontrol`.
 
 **Auto-usar un proyecto SIN preguntar — solo si se cumplen LAS DOS condiciones:**
@@ -32,8 +32,8 @@ No tengo claro qué proyecto de MC corresponde a esta carpeta.
   git remote: <url o 'sin remoto'>
 
 Candidatos:
-  - <id>: <name> (repoUrl: <url>, último crumb: <timestamp>)
-  - <id>: <name> (repoUrl: <url>, último crumb: <timestamp>)
+  - <id>: <name> (repoUrl: <url>)
+  - <id>: <name> (repoUrl: <url>)
 
 ¿Cuál uso? Responde con el id, o 'nuevo' si no existe y quieres crearlo.
 ```
@@ -46,13 +46,17 @@ Si responde `'ninguno'` o equivalente → aborta el import, no sigas.
 
 ## 1 · Cargar contexto
 
-Con el `projectId` confirmado, llama en paralelo a:
+Los metadatos del proyecto (URLs, ramas, color, stack, descripción) ya están en la respuesta de `mc_list_projects({ minimal: true })` del paso 0 — reutilízalos.
 
-- `mc_get_project` — metadatos, URLs, últimos crumbs (incluido en la respuesta)
-- `mc_get_file` con `name="CONTEXT.md"` — si existe
-- `mc_get_file` con `name="DEPLOY_STATUS.md"` — si existe (ignora el error si no hay)
-- `mc_get_highlights` con ese `projectId` — subrayados pendientes
-- `mc_get_briefing_history` con `kind="project"` y ese `projectId` — el último briefing disponible (técnico o ejecutivo)
+Llama en paralelo a:
+
+- `mc_get_crumbs` con `{ projectId, limit: 3, summary: true }` — los últimos 3 títulos sin body, para el bloque "Últimos 3 crumbs" del resumen.
+- `mc_get_file` con `name="CONTEXT.md"` — si existe.
+- `mc_get_file` con `name="DEPLOY_STATUS.md"` — si existe (ignora el error si no hay).
+- `mc_get_highlights` con ese `projectId` — subrayados pendientes.
+- `mc_get_briefing_history` con `kind="project"` y ese `projectId` — el último briefing disponible.
+
+NO uses `mc_get_project` — su payload incluye crumbs completos + files completos y satura el contexto. Las llamadas granulares anteriores son ~10× más ligeras juntas.
 
 Si alguno no existe, ignora silenciosamente — no todos los proyectos tienen todos los archivos.
 
