@@ -1,0 +1,465 @@
+/* src/divan.css — pestaña Diván (think tank de MC) */
+
+.divan {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 8px 0 60px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.divan-loading,
+.divan-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.divan-empty .divan-hint,
+.divan-error-block .divan-hint {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-tertiary, #9a9a9a);
+}
+
+.divan-error-block {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #b91c1c;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.divan-flash {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #047857;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.divan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.divan-section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary, #9a9a9a);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+
+/* === MODOS ============================================================== */
+
+.divan-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.divan-mode-chip {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.divan-mode-chip:hover { transform: translateY(-1px); }
+
+.divan-mode-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary, #6b6b6b);
+  font-style: italic;
+}
+
+/* === PROYECTOS ========================================================== */
+
+.divan-project-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.divan-project-search {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--bg-card, #fff);
+}
+
+.divan-project-toggle {
+  all: unset;
+  cursor: pointer;
+  padding: 8px 14px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.divan-project-list {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  padding: 8px 4px;
+  background: var(--bg-card, #fff);
+}
+
+.divan-project-group { padding: 4px 8px 8px; }
+.divan-project-group.is-muted { opacity: 0.6; }
+
+.divan-project-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary, #9a9a9a);
+  font-family: 'JetBrains Mono', monospace;
+  margin: 6px 4px 4px;
+}
+
+.divan-project-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.divan-project-row:hover {
+  background: var(--bg-inset, rgba(0, 0, 0, 0.03));
+}
+
+.divan-project-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.divan-project-name { flex: 1; }
+
+.divan-project-status {
+  font-size: 10px;
+  color: var(--text-tertiary, #9a9a9a);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.divan-selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.divan-selected-chip {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-inset, rgba(0, 0, 0, 0.05));
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  border-radius: 14px;
+  font-size: 12px;
+}
+
+.divan-selected-chip:hover { background: rgba(220, 38, 38, 0.1); }
+
+.divan-chip-x {
+  color: var(--text-tertiary, #9a9a9a);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.divan-empty-list {
+  padding: 12px 8px;
+  font-size: 13px;
+  color: var(--text-tertiary, #9a9a9a);
+  font-style: italic;
+}
+
+/* === CHECKBOX TRANSVERSAL =============================================== */
+
+.divan-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  user-select: none;
+}
+
+.divan-checkbox input { accent-color: #6366F1; }
+
+/* === PROFUNDIDAD ======================================================== */
+
+.divan-depth {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.divan-depth-btn {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary, #6b6b6b);
+  transition: all 0.15s;
+}
+
+.divan-depth-btn:hover { border-color: #6366F1; color: #6366F1; }
+
+.divan-depth-btn.is-active {
+  background: #6366F1;
+  border-color: #6366F1;
+  color: #fff;
+}
+
+.divan-depth-est {
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--text-tertiary, #9a9a9a);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* === INPUT + PENSAR ===================================================== */
+
+.divan-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  resize: vertical;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #1a1a1a);
+}
+
+.divan-input:focus { outline: 2px solid #6366F1; outline-offset: -1px; border-color: transparent; }
+
+.divan-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.divan-think-btn {
+  all: unset;
+  cursor: pointer;
+  padding: 9px 22px;
+  background: #6366F1;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.divan-think-btn:hover:not(:disabled) { background: #4f46e5; }
+
+.divan-think-btn:disabled {
+  background: var(--text-tertiary, #9a9a9a);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.divan-hint {
+  font-size: 11px;
+  color: var(--text-tertiary, #9a9a9a);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* === CONVERSACIÓN ======================================================= */
+
+.divan-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.divan-turn {
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.08));
+}
+
+.divan-turn-user {
+  background: var(--bg-inset, rgba(0, 0, 0, 0.025));
+  border-left: 3px solid #6366F1;
+}
+
+.divan-turn-assistant {
+  background: var(--bg-card, #fff);
+}
+
+.divan-turn-draft {
+  background: rgba(99, 102, 241, 0.04);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.divan-turn-role {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary, #9a9a9a);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.divan-turn-content {
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.divan-markdown { font-size: 14px; line-height: 1.6; }
+.divan-markdown h2 { font-size: 18px; margin: 16px 0 8px; }
+.divan-markdown h3 { font-size: 15px; margin: 14px 0 6px; }
+.divan-markdown h4 { font-size: 13px; margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary, #6b6b6b); }
+.divan-markdown p { margin: 6px 0; }
+.divan-markdown code { background: var(--bg-inset, rgba(0, 0, 0, 0.05)); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+.divan-markdown strong { font-weight: 600; }
+
+.divan-li {
+  font-size: 14px;
+  line-height: 1.55;
+  padding-left: 6px;
+  margin: 3px 0;
+}
+
+/* === ACCIONES SOBRE LA RESPUESTA ======================================== */
+
+.divan-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-primary, rgba(0, 0, 0, 0.1));
+}
+
+.divan-action-group { display: flex; gap: 6px; }
+
+.divan-action-select {
+  padding: 7px 10px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg-card, #fff);
+  min-width: 180px;
+}
+
+.divan-action-btn {
+  all: unset;
+  cursor: pointer;
+  padding: 7px 14px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #1a1a1a);
+  transition: all 0.15s;
+}
+
+.divan-action-btn:hover:not(:disabled) {
+  background: var(--bg-inset, rgba(0, 0, 0, 0.04));
+  border-color: #6366F1;
+}
+
+.divan-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* === FORMULARIO MODE DRAFT ============================================== */
+
+.divan-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin: 8px 0 12px;
+}
+
+.divan-field { display: flex; flex-direction: column; gap: 4px; }
+.divan-field.is-full { grid-column: 1 / -1; }
+
+.divan-field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary, #9a9a9a);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.divan-field-input { display: flex; gap: 6px; align-items: center; }
+
+.divan-field-input input,
+.divan-field-input select,
+.divan-field-input textarea {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--bg-card, #fff);
+}
+
+.divan-field-input textarea {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.divan-field-input input[type="color"] {
+  flex: 0 0 40px;
+  padding: 2px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.divan-form-hex {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 12px !important;
+}
+
+/* === BUDGET LINE ======================================================== */
+
+.divan-budget {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--bg-inset, rgba(0, 0, 0, 0.03));
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-secondary, #6b6b6b);
+  font-family: 'JetBrains Mono', monospace;
+}

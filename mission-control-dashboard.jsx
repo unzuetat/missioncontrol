@@ -5,6 +5,8 @@ import DailyPulseBanner from "./src/DailyPulseBanner.jsx";
 import ProjectBriefingSection from "./src/ProjectBriefingSection.jsx";
 import BriefingsView from "./src/BriefingsView.jsx";
 import HighlightsView from "./src/HighlightsView.jsx";
+import DivanView from "./src/DivanView.jsx";
+import "./src/divan.css";
 
 const SOURCE_META = {
   github: { label: "GitHub", icon: "⬡", color: "#8B949E" },
@@ -1739,7 +1741,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 color: "var(--text-primary)", transition: "font-size 0.3s",
               }}
             >
-              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : view === "highlights" ? `📌 ${t("allHighlights")}` : "Mission Control"}
+              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : view === "highlights" ? `📌 ${t("allHighlights")}` : view === "divan" ? t("allDivan") : "Mission Control"}
             </h1>
             {view === "detail" && selectedProject && (
               <>
@@ -1748,7 +1750,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 <ProjectLinks project={selectedProject} />
               </>
             )}
-            {(view === "ideas" || view === "testing" || view === "briefings" || view === "highlights") && (
+            {(view === "ideas" || view === "testing" || view === "briefings" || view === "highlights" || view === "divan") && (
               <button
                 onClick={() => setView("grid")}
                 style={{
@@ -1925,6 +1927,20 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   >
                     📌 {t("allHighlights")}
                   </button>
+                  <button
+                    onClick={() => setView("divan")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 11,
+                      padding: "5px 12px", borderRadius: 6,
+                      background: "#6366F118", border: "1px solid #6366F135",
+                      color: "#6366F1", fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = "#6366F128"; }}
+                    onMouseLeave={(e) => { e.target.style.background = "#6366F118"; }}
+                  >
+                    {t("allDivan")}
+                  </button>
                   {archivedCount > 0 && (
                     <button
                       onClick={() => setShowArchived((v) => !v)}
@@ -2042,6 +2058,11 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
               if (p) handleSelectProject(p);
             }}
           />
+        )}
+
+        {/* DIVÁN VIEW */}
+        {!loading && view === "divan" && (
+          <DivanView apiBase={API_BASE} t={t} projects={projects} />
         )}
 
         {/* DETAIL VIEW */}
