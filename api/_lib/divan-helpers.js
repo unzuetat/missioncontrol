@@ -53,15 +53,24 @@ export function resolveModel(value) {
 
 // ---------------------------------------------------------------------------
 // Presets de profundidad. Cada nivel mapea a:
-//   - ctxBudgetTokens: tope blando del contexto inyectado (input).
-//     Si nos pasamos, el builder trunca CONTEXT.md y bodies de crumbs.
-//   - maxOutputTokens:  tope duro de la respuesta del modelo.
+//   - ctxBudgetTokens: tope BLANDO del contexto inyectado. Si lo superamos,
+//     el builder primero intenta resumir (CONTEXT.md por proyecto a sus
+//     primeros ~2k chars, dropea la sección "actividad reciente cross") en
+//     vez de hacer un slice bruto. Solo si tras la degradación seguimos por
+//     encima de MAX_INPUT_TOKENS hacemos un recorte final de seguridad.
+//   - maxOutputTokens: tope de la respuesta del modelo. Se respeta tal cual.
+//     El límite de contexto del modelo (200k) aplica solo al input; output
+//     se cobra y limita por separado, así que no se reduce dinámicamente.
 
 export const DEPTH_PRESETS = {
-  rapido: { ctxBudgetTokens: 15000, maxOutputTokens: 800 },
-  normal: { ctxBudgetTokens: 45000, maxOutputTokens: 2000 },
-  toston: { ctxBudgetTokens: 120000, maxOutputTokens: 4000 },
+  rapido: { ctxBudgetTokens: 25000, maxOutputTokens: 1000 },
+  normal: { ctxBudgetTokens: 80000, maxOutputTokens: 2500 },
+  toston: { ctxBudgetTokens: 160000, maxOutputTokens: 4000 },
 };
+
+// Techo absoluto de input. Por encima de este número se hace recorte final
+// de seguridad para no rebasar el contexto del modelo (200k).
+export const MAX_INPUT_TOKENS = 180000;
 
 export const DEFAULT_DEPTH = 'normal';
 
@@ -143,47 +152,100 @@ export async function buildDivanContext({ modeConfig, projectIds = [], includeTr
     : !!modeConfig?.includeTransversal;
   const preset = DEPTH_PRESETS[depth] || DEPTH_PRESETS[DEFAULT_DEPTH];
 
-  const sections = [];
+  // 1. Construir secciones a tamaño "full" del scope.
+  const projectSections = [];
   const includedProjectIds = [];
-
-  // Bloque por cada proyecto seleccionado.
   for (const pid of projectIds) {
     const project = await getProjectById(pid);
     if (!project) continue;
     includedProjectIds.push(pid);
-    sections.push(await buildProjectBlock(project, scope, kvClient));
+    projectSections.push({
+      project,
+      block: await buildProjectBlock(project, scope, kvClient),
+    });
   }
 
-  // Bloque transversal opcional.
+  let transversalBlock = '';
   if (wantTransversal) {
-    sections.push(await buildTransversalBlock(kvClient));
+    transversalBlock = await buildTransversalBlock(kvClient);
   }
 
-  // Si no hay nada, devolvemos el bloque mínimo (mode-only chat).
-  let contextBlock = sections.filter(Boolean).join('\n\n---\n\n').trim();
+  let assembled = assemble(projectSections, transversalBlock);
+  let estimated = estimateTokens(assembled);
+  const degraded = [];
+
+  // 2. Degradación progresiva si pasamos del budget blando.
+  if (estimated > preset.ctxBudgetTokens && scope !== 'minimal') {
+    // Paso 1: re-construir cada bloque de proyecto con scope='standard' (sin
+    // crumbs ni highlights) y CONTEXT.md recortado a 4000 chars.
+    for (let i = 0; i < projectSections.length; i++) {
+      projectSections[i].block = await buildProjectBlock(projectSections[i].project, 'standard', kvClient, { maxContextChars: 4000 });
+    }
+    degraded.push('per-project: scope reducido a standard, CONTEXT.md a 4k chars');
+    assembled = assemble(projectSections, transversalBlock);
+    estimated = estimateTokens(assembled);
+  }
+
+  if (estimated > preset.ctxBudgetTokens) {
+    // Paso 2: en lugar del CONTEXT.md, solo metadata del proyecto.
+    for (let i = 0; i < projectSections.length; i++) {
+      projectSections[i].block = await buildProjectBlock(projectSections[i].project, 'minimal', kvClient);
+    }
+    degraded.push('per-project: scope reducido a minimal (sin CONTEXT.md)');
+    assembled = assemble(projectSections, transversalBlock);
+    estimated = estimateTokens(assembled);
+  }
+
+  if (estimated > preset.ctxBudgetTokens && transversalBlock) {
+    // Paso 3: dropear sección de actividad reciente del transversal.
+    transversalBlock = stripTransversalActivity(transversalBlock);
+    degraded.push('transversal: actividad reciente cross-proyecto eliminada');
+    assembled = assemble(projectSections, transversalBlock);
+    estimated = estimateTokens(assembled);
+  }
+
+  // 3. Recorte final de seguridad solo si seguimos por encima del techo absoluto.
+  let truncated = false;
+  if (estimated > MAX_INPUT_TOKENS) {
+    const targetChars = Math.floor(MAX_INPUT_TOKENS * CHARS_PER_TOKEN * 0.95);
+    assembled = assembled.slice(0, targetChars) + '\n\n_[contexto recortado por exceso absoluto sobre 180k tokens]_';
+    estimated = estimateTokens(assembled);
+    truncated = true;
+    degraded.push(`recorte final a ${MAX_INPUT_TOKENS} tokens`);
+  }
+
+  let contextBlock = assembled.trim();
   if (!contextBlock) {
     contextBlock = '_(El usuario no seleccionó proyectos ni perfil transversal — responde sin contexto del portfolio, solo desde tu rol como modo.)_';
-  }
-
-  // Recortar si nos pasamos del budget.
-  let estimated = estimateTokens(contextBlock);
-  let truncated = false;
-  if (estimated > preset.ctxBudgetTokens) {
-    truncated = true;
-    const targetChars = Math.floor(preset.ctxBudgetTokens * CHARS_PER_TOKEN * 0.95);
-    contextBlock = contextBlock.slice(0, targetChars) + '\n\n_[contexto truncado al cap del nivel de profundidad]_';
-    estimated = estimateTokens(contextBlock);
   }
 
   return {
     contextBlock,
     includedProjectIds,
     truncated,
+    degraded,
     estimatedTokens: estimated,
   };
 }
 
-async function buildProjectBlock(project, scope, _kvClient) {
+function assemble(projectSections, transversalBlock) {
+  const sections = [];
+  for (const ps of projectSections) {
+    if (ps?.block) sections.push(ps.block);
+  }
+  if (transversalBlock) sections.push(transversalBlock);
+  return sections.join('\n\n---\n\n').trim();
+}
+
+function stripTransversalActivity(block) {
+  // Elimina la sección "## Actividad reciente cross-proyecto" y todo lo que
+  // venga detrás (la sección suele ser la última del bloque transversal).
+  const idx = block.indexOf('## Actividad reciente cross-proyecto');
+  if (idx === -1) return block;
+  return block.slice(0, idx).trim();
+}
+
+async function buildProjectBlock(project, scope, _kvClient, opts = {}) {
   const lines = [
     `# ${project.name} (${project.id})`,
     `Estado: ${project.status || '?'}`,
@@ -200,7 +262,7 @@ async function buildProjectBlock(project, scope, _kvClient) {
   const files = await getProjectFiles(project.id);
   const contextFile = files.find((f) => f.name === 'CONTEXT.md');
   if (contextFile?.content) {
-    const maxChars = scope === 'full' ? 12000 : 6000;
+    const maxChars = opts.maxContextChars ?? (scope === 'full' ? 12000 : 6000);
     const ctx = String(contextFile.content).slice(0, maxChars);
     lines.push('', '## CONTEXT.md', ctx);
   }

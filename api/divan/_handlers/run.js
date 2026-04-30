@@ -24,6 +24,7 @@ import {
   isMonthlyCapReached,
   recordCost,
   getMonthlyBudget,
+  pushBriefing,
 } from '../../_lib/briefing-helpers.js';
 import {
   divanKeys,
@@ -35,6 +36,16 @@ import {
 } from '../../_lib/divan-helpers.js';
 
 const META_DRAFT_MARKER = '__divan_mode_draft';
+
+// Lista persistente de respuestas del Diván — sirve dos propósitos:
+//   1. Hacer la respuesta subrayable vía AnnotatedMarkdown (cada respuesta
+//      tiene un briefingId = generatedAt).
+//   2. Que aparezca en la pestaña Subrayados como grupo "Diván" agrupado.
+const DIVAN_BRIEFING_LIST_KEY = 'briefing:divan:list';
+// Más histórico que briefings normales (10) porque cada Pensar genera uno y
+// el coste por entrada es bajo. Highlights asociados sobreviven aun cuando
+// el briefing salga de la lista (annotations indexan por briefingId).
+const DIVAN_BRIEFING_HISTORY_LIMIT = 50;
 
 export default async function handler(req, res) {
   Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));
@@ -107,21 +118,49 @@ async function runOneShot({ kv, body, userMessage, res }) {
     messages: [{ role: 'user', content: userContent }],
   });
 
+  const generatedAt = new Date().toISOString();
+  const draftDetected = detectModeDraft(llmResult.markdown);
+  const briefing = buildDivanBriefing({
+    generatedAt,
+    markdown: llmResult.markdown,
+    userQuestion: userMessage,
+    mode,
+    projectIds: ctx.includedProjectIds,
+    includeTransversal,
+    depth,
+    model,
+    usage: llmResult.usage,
+    durationMs: llmResult.durationMs,
+    contextDegraded: ctx.degraded,
+    contextTruncated: ctx.truncated,
+    estimatedContextTokens: ctx.estimatedTokens,
+    draftDetected,
+  });
+
+  // No persistimos los borradores del modo "Ajustes" — son schemas, no contenido.
+  const persisted = !draftDetected;
+  if (persisted) {
+    await pushBriefing(getKv, DIVAN_BRIEFING_LIST_KEY, briefing, DIVAN_BRIEFING_HISTORY_LIMIT);
+  }
+
   await recordCost(getKv, {
     kind: 'divan',
     costUsd: llmResult.usage.costUsd,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     model,
     durationMs: llmResult.durationMs,
   });
 
   return res.status(200).json({
     markdown: llmResult.markdown,
-    modelDraftDetected: detectModeDraft(llmResult.markdown),
+    modelDraftDetected: draftDetected,
+    briefingId: persisted ? generatedAt : null,
+    persisted,
     sessionId: null,
     turnCount: 1,
     includedProjectIds: ctx.includedProjectIds,
     truncated: ctx.truncated,
+    degraded: ctx.degraded,
     estimatedContextTokens: ctx.estimatedTokens,
     usage: llmResult.usage,
     model,
@@ -162,6 +201,8 @@ async function runInSession({ kv, sessionId, userMessage, body, res }) {
   });
 
   const now = new Date().toISOString();
+  const draftDetected = detectModeDraft(llmResult.markdown);
+
   const updatedSession = {
     ...session,
     turns: [
@@ -174,10 +215,30 @@ async function runInSession({ kv, sessionId, userMessage, body, res }) {
     model,
   };
 
-  // Guardar y mover al frente de la lista.
   await kv.set(divanKeys.session(sessionId), JSON.stringify(updatedSession));
   await kv.lRem(divanKeys.sessionsList, 0, sessionId);
   await kv.lPush(divanKeys.sessionsList, sessionId);
+
+  // Persistir cada turno como briefing del Diván (mismo briefingId = ts del turn)
+  // para que sea subrayable / recuperable desde Briefings y Subrayados.
+  const briefing = buildDivanBriefing({
+    generatedAt: now,
+    markdown: llmResult.markdown,
+    userQuestion: userMessage,
+    mode,
+    projectIds: session.projectIds || [],
+    includeTransversal: !!session.includeTransversal,
+    depth,
+    model,
+    usage: llmResult.usage,
+    durationMs: llmResult.durationMs,
+    sessionId,
+    draftDetected,
+  });
+  const persisted = !draftDetected;
+  if (persisted) {
+    await pushBriefing(getKv, DIVAN_BRIEFING_LIST_KEY, briefing, DIVAN_BRIEFING_HISTORY_LIMIT);
+  }
 
   await recordCost(getKv, {
     kind: 'divan',
@@ -187,11 +248,13 @@ async function runInSession({ kv, sessionId, userMessage, body, res }) {
     durationMs: llmResult.durationMs,
   });
 
-  const turnCount = updatedSession.turns.length / 2; // user+assistant pairs
+  const turnCount = updatedSession.turns.length / 2;
 
   return res.status(200).json({
     markdown: llmResult.markdown,
-    modelDraftDetected: detectModeDraft(llmResult.markdown),
+    modelDraftDetected: draftDetected,
+    briefingId: persisted ? now : null,
+    persisted,
     sessionId,
     turnCount,
     softCapReached: turnCount >= 20,
@@ -208,6 +271,34 @@ async function runInSession({ kv, sessionId, userMessage, body, res }) {
 
 function composeUserContent(contextBlock, userMessage) {
   return `${contextBlock}\n\n---\n\nPETICIÓN DEL USUARIO:\n${userMessage}`;
+}
+
+function buildDivanBriefing({
+  generatedAt, markdown, userQuestion, mode, projectIds, includeTransversal,
+  depth, model, usage, durationMs, sessionId = null,
+  contextDegraded = [], contextTruncated = false, estimatedContextTokens = null,
+  draftDetected = null,
+}) {
+  return {
+    kind: 'divan',
+    generatedAt,
+    markdown,
+    userQuestion,
+    modeId: mode?.id || null,
+    modeName: mode?.name || null,
+    modeColor: mode?.color || null,
+    projectIds: Array.isArray(projectIds) ? projectIds : [],
+    includeTransversal: !!includeTransversal,
+    depth,
+    model,
+    usage,
+    durationMs,
+    sessionId,
+    contextTruncated,
+    contextDegraded,
+    estimatedContextTokens,
+    draftDetected: draftDetected ? true : false,
+  };
 }
 
 async function callLLM({ model, systemPrompt, maxOutputTokens, messages }) {

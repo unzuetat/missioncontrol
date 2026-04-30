@@ -41,8 +41,9 @@ export default function HighlightsView({ apiBase = '', t, onOpenProject }) {
     });
   }
 
-  const projectGroupsCount = groups.filter((g) => g.kind !== 'portfolio').length;
+  const projectGroupsCount = groups.filter((g) => g.kind !== 'portfolio' && g.kind !== 'divan').length;
   const portfolioGroup = groups.find((g) => g.kind === 'portfolio');
+  const divanGroup = groups.find((g) => g.kind === 'divan');
 
   return (
     <div>
@@ -51,7 +52,8 @@ export default function HighlightsView({ apiBase = '', t, onOpenProject }) {
           <strong>{total}</strong> {total === 1 ? 'subrayado' : 'subrayados'} en{' '}
           <strong>{projectGroupsCount}</strong>{' '}
           {projectGroupsCount === 1 ? 'proyecto' : 'proyectos'}
-          {portfolioGroup && <> + portfolio</>}.
+          {portfolioGroup && <> + portfolio</>}
+          {divanGroup && <> + diván</>}.
         </p>
       </section>
 
@@ -67,11 +69,13 @@ export default function HighlightsView({ apiBase = '', t, onOpenProject }) {
       <div className="highlights-groups">
         {groups.map((g) => {
           const isPortfolio = g.kind === 'portfolio';
+          const isDivan = g.kind === 'divan';
+          const isVirtual = isPortfolio || isDivan;
           const isOpen = openProjects.has(g.projectId);
           return (
             <section
               key={g.projectId}
-              className={`highlights-group ${isPortfolio ? 'highlights-group-portfolio' : ''}`}
+              className={`highlights-group ${isPortfolio ? 'highlights-group-portfolio' : ''} ${isDivan ? 'highlights-group-divan' : ''}`}
             >
               <header
                 className="highlights-group-header"
@@ -86,7 +90,7 @@ export default function HighlightsView({ apiBase = '', t, onOpenProject }) {
                   {g.projectName}
                 </h4>
                 <span className="highlights-group-count">{g.highlights.length}</span>
-                {!isPortfolio && onOpenProject && (
+                {!isVirtual && onOpenProject && (
                   <button
                     type="button"
                     className="highlights-group-open"

@@ -16,6 +16,8 @@ import { getBriefingHistory, HISTORY_LIMIT } from '../../_lib/briefing-helpers.j
 
 const PORTFOLIO_ID = '__portfolio__';
 const PORTFOLIO_NAME = 'Portfolio';
+const DIVAN_ID = '__divan__';
+const DIVAN_NAME = 'Diván';
 
 async function extractHighlightsFromList(client, listKey, { defaultFlavor = 'technical' } = {}) {
   const briefings = await getBriefingHistory(getKv, listKey, HISTORY_LIMIT);
@@ -71,17 +73,22 @@ export default async function handler(req, res) {
     const client = await getKv();
 
     if (projectId) {
-      // Modo por proyecto (o explícitamente portfolio si alguien llama con ese id).
+      // Modo por proyecto (o explícitamente portfolio / divan si alguien llama con ese id).
       if (projectId === PORTFOLIO_ID) {
         const highlights = await extractHighlightsFromList(client, 'briefing:daily:list');
         return res.status(200).json({ highlights, projectId: PORTFOLIO_ID, count: highlights.length });
+      }
+      if (projectId === DIVAN_ID) {
+        const highlights = await extractHighlightsFromList(client, 'briefing:divan:list');
+        return res.status(200).json({ highlights, projectId: DIVAN_ID, count: highlights.length });
       }
       const highlights = await extractHighlightsFromList(client, `briefing:project:${projectId}:list`);
       return res.status(200).json({ highlights, projectId, count: highlights.length });
     }
 
-    // Modo global: portfolio (daily) primero + un grupo por proyecto con subrayados.
+    // Modo global: portfolio (daily) + Diván + un grupo por proyecto.
     const portfolioHighlights = await extractHighlightsFromList(client, 'briefing:daily:list');
+    const divanHighlights = await extractHighlightsFromList(client, 'briefing:divan:list');
 
     const projects = await getAllProjects();
     const projectGroups = [];
@@ -114,6 +121,15 @@ export default async function handler(req, res) {
         kind: 'portfolio',
         highlights: portfolioHighlights,
       });
+    }
+    if (divanHighlights.length) {
+      groups.push({
+        projectId: DIVAN_ID,
+        projectName: DIVAN_NAME,
+        kind: 'divan',
+        highlights: divanHighlights,
+      });
+      total += divanHighlights.length;
     }
     groups.push(...projectGroups);
 
