@@ -32,6 +32,7 @@ import {
   resolveModel,
   resolveDepth,
   DEPTH_PRESETS,
+  DEPTH_LABELS,
   DEFAULT_DEPTH,
 } from '../../_lib/divan-helpers.js';
 
@@ -110,7 +111,7 @@ async function runOneShot({ kv, body, userMessage, res }) {
     kvClient: kv,
   });
 
-  const userContent = composeUserContent(ctx.contextBlock, userMessage);
+  const userContent = composeUserContent(ctx.contextBlock, userMessage, depth);
   const llmResult = await callLLM({
     model,
     systemPrompt: mode.systemPrompt,
@@ -165,6 +166,7 @@ async function runOneShot({ kv, body, userMessage, res }) {
     usage: llmResult.usage,
     model,
     depth,
+    stopReason: llmResult.stopReason,
     durationMs: llmResult.durationMs,
     budget: await getMonthlyBudget(getKv),
   });
@@ -261,6 +263,7 @@ async function runInSession({ kv, sessionId, userMessage, body, res }) {
     usage: llmResult.usage,
     model,
     depth,
+    stopReason: llmResult.stopReason,
     durationMs: llmResult.durationMs,
     budget: await getMonthlyBudget(getKv),
   });
@@ -269,8 +272,11 @@ async function runInSession({ kv, sessionId, userMessage, body, res }) {
 // ---------------------------------------------------------------------------
 // Helpers
 
-function composeUserContent(contextBlock, userMessage) {
-  return `${contextBlock}\n\n---\n\nPETICIÓN DEL USUARIO:\n${userMessage}`;
+function composeUserContent(contextBlock, userMessage, depth) {
+  const preset = DEPTH_PRESETS[depth] || DEPTH_PRESETS[DEFAULT_DEPTH];
+  const label = DEPTH_LABELS[depth] || DEPTH_LABELS[DEFAULT_DEPTH];
+  const lengthHint = `INSTRUCCIONES DE LONGITUD\n- Profundidad solicitada por el usuario: ${label} → apunta a ~${preset.targetWords} palabras.\n- Adapta la longitud al objetivo y al espacio del contexto: si el contexto es escueto, sé más breve aunque la profundidad sea alta; si hay mucha sustancia y la profundidad lo permite, desarrolla.\n- Tu cap duro de salida es ~${preset.maxOutputTokens} tokens. Asegúrate de cerrar la respuesta antes — no la dejes a medias.\n- Si el cap es ajustado y la idea es grande, sintetiza priorizando lo importante en lugar de quedarte cortado al final.`;
+  return `${contextBlock}\n\n---\n\nPETICIÓN DEL USUARIO:\n${userMessage}\n\n---\n\n${lengthHint}`;
 }
 
 function buildDivanBriefing({
@@ -312,7 +318,12 @@ async function callLLM({ model, systemPrompt, maxOutputTokens, messages }) {
   });
   const markdown = extractMarkdown(response);
   const usage = computeCost(response.usage, model);
-  return { markdown, usage, durationMs: Date.now() - startedAt };
+  return {
+    markdown,
+    usage,
+    durationMs: Date.now() - startedAt,
+    stopReason: response.stop_reason || null,
+  };
 }
 
 function detectModeDraft(markdown) {

@@ -142,6 +142,7 @@ export default function DivanView({ apiBase = '', t, projects = [] }) {
           degraded: Array.isArray(data.degraded) ? data.degraded : [],
           truncated: !!data.truncated,
           estimatedContextTokens: data.estimatedContextTokens || null,
+          stopReason: data.stopReason || null,
         },
       ]);
       setUserInput('');
@@ -502,6 +503,8 @@ function Turn({ turn, apiBase, projects, onCreateMode }) {
     ? `Diván · ${turn.modeName} · ${formatTurnDate(turn.generatedAt)}`
     : `Diván · ${formatTurnDate(turn.generatedAt)}`;
 
+  const wasCutByLength = turn.stopReason === 'max_tokens';
+
   return (
     <div className="divan-turn divan-turn-assistant">
       <div className="divan-turn-role">
@@ -519,6 +522,11 @@ function Turn({ turn, apiBase, projects, onCreateMode }) {
         projects={projects}
         sourceLabel={sourceLabel}
       />
+      {wasCutByLength && (
+        <div className="divan-cut-warning" title="El modelo alcanzó su cap de output. Sube a Tostón si quieres más profundidad, o pide explícitamente un resumen más conciso para que entre.">
+          ⚠ Respuesta cortada por longitud — el modelo apuró el cap. Prueba subir a "Tostón" o pide al Diván que sintetice si quieres que entre.
+        </div>
+      )}
     </div>
   );
 }
