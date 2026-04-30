@@ -24,4 +24,16 @@ export const api = {
   createFile: (data) => request('/files', { method: 'POST', body: JSON.stringify(data) }),
   updateFile: (data) => request('/files', { method: 'PUT', body: JSON.stringify(data) }),
   deleteFile: (data) => request('/files', { method: 'DELETE', body: JSON.stringify(data) }),
+
+  // Diván
+  divanListModes: () => request('/divan/modes'),
+  divanCreateMode: (data) => request('/divan/modes', { method: 'POST', body: JSON.stringify(data) }),
+  divanUpdateMode: (id, data) => request(`/divan/modes?id=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  divanDeleteMode: (id) => request(`/divan/modes?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  divanRun: (data) => request('/divan/run', { method: 'POST', body: JSON.stringify(data) }),
+  divanListSessions: () => request('/divan/sessions'),
+  divanGetSession: (id) => request(`/divan/sessions?id=${encodeURIComponent(id)}`),
+  divanCreateSession: (data) => request('/divan/sessions', { method: 'POST', body: JSON.stringify(data) }),
+  divanRenameSession: (id, title) => request(`/divan/sessions?id=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ title }) }),
+  divanDeleteSession: (id) => request(`/divan/sessions?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
