@@ -62,10 +62,20 @@ export function resolveModel(value) {
 //     El límite de contexto del modelo (200k) aplica solo al input; output
 //     se cobra y limita por separado, así que no se reduce dinámicamente.
 
+// targetWords: rango orientativo que se pasa al modelo para que adapte longitud.
+// maxOutputTokens: tope DURO con margen, para que el modelo casi nunca lo toque.
+//   Si el cap es muy ajustado, el modelo se corta a media frase (mala UX).
+//   Damos margen ~3x sobre el target medio en tokens (1 palabra ≈ 1.3 tokens ES).
 export const DEPTH_PRESETS = {
-  rapido: { ctxBudgetTokens: 25000, maxOutputTokens: 1000 },
-  normal: { ctxBudgetTokens: 80000, maxOutputTokens: 2500 },
-  toston: { ctxBudgetTokens: 160000, maxOutputTokens: 4000 },
+  rapido: { ctxBudgetTokens: 25000, maxOutputTokens: 1500,  targetWords: '300-500' },
+  normal: { ctxBudgetTokens: 80000, maxOutputTokens: 4500,  targetWords: '1000-1800' },
+  toston: { ctxBudgetTokens: 160000, maxOutputTokens: 10000, targetWords: '2500-3500' },
+};
+
+export const DEPTH_LABELS = {
+  rapido: 'Rápido',
+  normal: 'Normal',
+  toston: 'Tostón',
 };
 
 // Techo absoluto de input. Por encima de este número se hace recorte final

@@ -107,35 +107,57 @@ export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '',
     // Save fuera del updater (updaters pueden dispararse 2x en StrictMode).
     queueMicrotask(() => { if (nextState) save(nextState); });
   }
-  async function sendBlockToProject(idx, projectId) {
+  async function sendBlockToProjects(idx, projectIds) {
     const block = blocks[idx];
-    if (!block || !projectId) return;
-    const project = projects?.find((p) => p.id === projectId);
+    if (!block || !Array.isArray(projectIds) || projectIds.length === 0) return;
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) headers['x-api-key'] = apiKey;
     const footer = sourceLabel ? `\n\n— ${sourceLabel}` : '';
     const body = `${block.content}${footer}`;
-    try {
-      const res = await fetch(`${apiBase}/api/crumbs`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          projectId,
-          title: titleFromText(block.content),
-          body,
-          source: 'divan',
-          timestamp: new Date().toISOString(),
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // Marca la anotación con destino para no perder la trazabilidad y
-      // mostrar el indicador en la UI.
-      updateBlock(idx, {
-        sentTo: { projectId, projectName: project?.name || projectId, ts: new Date().toISOString() },
-      });
-    } catch (e) {
-      // eslint-disable-next-line no-alert
-      window.alert(`No se pudo enviar el crumb: ${e?.message || e}`);
+    const ts = new Date().toISOString();
+    const newDestinations = [];
+    const errors = [];
+    for (const projectId of projectIds) {
+      const project = projects?.find((p) => p.id === projectId);
+      try {
+        const res = await fetch(`${apiBase}/api/crumbs`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            projectId,
+            title: titleFromText(block.content),
+            body,
+            source: 'divan',
+            timestamp: ts,
+          }),
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try {
+            const j = await res.json();
+            detail = j?.detail || j?.error || detail;
+          } catch { /* ignore parse */ }
+          throw new Error(detail);
+        }
+        newDestinations.push({ projectId, projectName: project?.name || projectId, ts });
+      } catch (e) {
+        errors.push({ projectId, message: e?.message || String(e) });
+      }
+    }
+    if (newDestinations.length > 0) {
+      // Acumula con destinos anteriores. Migra el formato viejo (objeto único) a array.
+      const prev = normalizeSentTo(annotations[idx]?.sentTo);
+      const merged = [...prev];
+      for (const d of newDestinations) {
+        if (!merged.find((x) => x.projectId === d.projectId)) merged.push(d);
+      }
+      updateBlock(idx, { sentTo: merged });
+    }
+    if (errors.length > 0) {
+      window.alert(
+        `Algunos envíos fallaron:\n` +
+        errors.map((e) => ` - ${e.projectId}: ${e.message}`).join('\n')
+      );
     }
   }
 
@@ -148,7 +170,7 @@ export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '',
           onChange={(patch) => updateBlock(idx, patch)}
           disabled={!loaded || !briefingId}
           projects={projects}
-          onSendToProject={(pid) => sendBlockToProject(idx, pid)}
+          onSendToProjects={(pids) => sendBlockToProjects(idx, pids)}
         >
           <BlockContent block={b} />
         </AnnotatedBlock>
@@ -162,12 +184,25 @@ function titleFromText(text) {
   return cleaned.slice(0, 80) || 'Fragmento del Diván';
 }
 
-function AnnotatedBlock({ ann, onChange, disabled, children, projects = null, onSendToProject }) {
+// `sentTo` puede ser undefined, un objeto único (formato viejo) o un array.
+// Esta normalización garantiza que siempre trabajemos con array.
+function normalizeSentTo(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'object' && value.projectId) return [value];
+  return [];
+}
+
+function AnnotatedBlock({ ann, onChange, disabled, children, projects = null, onSendToProjects }) {
   const highlight = !!ann?.highlight;
   const strike = !!ann?.strike;
   const comment = ann?.comment || '';
-  const sentTo = ann?.sentTo || null;
-  const hasAny = highlight || strike || !!comment || !!sentTo;
+  const sentTo = normalizeSentTo(ann?.sentTo);
+  const hasAny = highlight || strike || !!comment || sentTo.length > 0;
+
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
+  const [sending, setSending] = useState(false);
 
   const cls = ['ann-block'];
   if (highlight) cls.push('ann-block-highlight');
@@ -179,23 +214,46 @@ function AnnotatedBlock({ ann, onChange, disabled, children, projects = null, on
     onChange({ comment: value.trim() });
   }
 
-  function handleSendChange(e) {
-    const pid = e.target.value;
-    e.target.value = '';
-    if (!pid) return;
-    if (typeof onSendToProject === 'function') onSendToProject(pid);
+  function togglePicked(id) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function confirmSend() {
+    if (picked.size === 0 || typeof onSendToProjects !== 'function') return;
+    setSending(true);
+    try {
+      await onSendToProjects(Array.from(picked));
+    } finally {
+      setSending(false);
+      setPicked(new Set());
+      setPopoverOpen(false);
+    }
   }
 
   const activeProjects = Array.isArray(projects)
     ? projects.filter((p) => p.status !== 'archivado' && p.status !== 'archived')
     : null;
 
+  const sentIds = new Set(sentTo.map((s) => s.projectId));
+
   return (
     <div className={cls.join(' ')}>
       <div className="ann-block-body">{children}</div>
       {comment && <div className="ann-comment">💬 {comment}</div>}
-      {sentTo && (
-        <div className="ann-sent-to">↗ Enviado como crumb a <strong>{sentTo.projectName}</strong></div>
+      {sentTo.length > 0 && (
+        <div className="ann-sent-to">
+          ↗ Enviado como crumb a:
+          <div className="ann-sent-to-list">
+            {sentTo.map((d) => (
+              <span key={d.projectId} className="ann-sent-to-chip">{d.projectName}</span>
+            ))}
+          </div>
+        </div>
       )}
       {!disabled && (
         <div className="ann-toolbar">
@@ -218,26 +276,62 @@ function AnnotatedBlock({ ann, onChange, disabled, children, projects = null, on
             title="Comentar"
           >💬</button>
           {activeProjects && activeProjects.length > 0 && (
-            <select
-              className="ann-send-select"
-              defaultValue=""
-              onChange={handleSendChange}
-              title="Enviar este bloque como crumb a un proyecto"
-            >
-              <option value="">→ a proyecto…</option>
-              {activeProjects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <button
+              type="button"
+              className={`ann-btn ${sentTo.length > 0 ? 'active' : ''}`}
+              onClick={() => setPopoverOpen((v) => !v)}
+              title="Enviar este bloque como crumb a uno o varios proyectos"
+            >→</button>
           )}
           {hasAny && (
             <button
               type="button"
               className="ann-btn ann-btn-clear"
-              onClick={() => onChange({ highlight: false, strike: false, comment: '', sentTo: null })}
+              onClick={() => onChange({ highlight: false, strike: false, comment: '', sentTo: [] })}
               title="Limpiar"
             >✕</button>
           )}
+        </div>
+      )}
+      {popoverOpen && activeProjects && activeProjects.length > 0 && (
+        <div className="ann-send-popover" onClick={(e) => e.stopPropagation()}>
+          <div className="ann-send-popover-header">
+            Enviar como crumb a {picked.size > 0 ? `${picked.size} proyecto${picked.size === 1 ? '' : 's'}` : 'proyecto(s)…'}
+          </div>
+          <div className="ann-send-popover-list">
+            {activeProjects.map((p) => {
+              const already = sentIds.has(p.id);
+              const checked = picked.has(p.id);
+              return (
+                <label key={p.id} className="ann-send-popover-row">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => togglePicked(p.id)}
+                  />
+                  <span
+                    className="ann-send-popover-color"
+                    style={{ background: p.color || '#888' }}
+                  />
+                  <span className="ann-send-popover-name">{p.name}</span>
+                  {already && <span className="ann-send-popover-already">✓ enviado</span>}
+                </label>
+              );
+            })}
+          </div>
+          <div className="ann-send-popover-footer">
+            <button
+              type="button"
+              className="ann-send-popover-btn-ghost"
+              onClick={() => { setPopoverOpen(false); setPicked(new Set()); }}
+            >Cancelar</button>
+            <button
+              type="button"
+              className="ann-send-popover-btn"
+              disabled={picked.size === 0 || sending}
+              onClick={confirmSend}
+            >{sending ? 'Enviando…' : `Enviar a ${picked.size || ''}`.trim()}</button>
+          </div>
         </div>
       )}
     </div>
