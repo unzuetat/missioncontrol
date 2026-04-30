@@ -46,7 +46,7 @@ function BlockContent({ block }) {
 // AnnotatedMarkdown — markdown interactivo con capa de anotaciones por bloque.
 // Carga annotations del backend al montar y persiste cambios con debounce-by-action.
 
-export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '', onChange }) {
+export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '', onChange, projects = null, sourceLabel = null }) {
   const [annotations, setAnnotations] = useState({});
   const [loaded, setLoaded] = useState(false);
 
@@ -107,6 +107,38 @@ export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '',
     // Save fuera del updater (updaters pueden dispararse 2x en StrictMode).
     queueMicrotask(() => { if (nextState) save(nextState); });
   }
+  async function sendBlockToProject(idx, projectId) {
+    const block = blocks[idx];
+    if (!block || !projectId) return;
+    const project = projects?.find((p) => p.id === projectId);
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['x-api-key'] = apiKey;
+    const footer = sourceLabel ? `\n\n— ${sourceLabel}` : '';
+    const body = `${block.content}${footer}`;
+    try {
+      const res = await fetch(`${apiBase}/api/crumbs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          projectId,
+          title: titleFromText(block.content),
+          body,
+          source: 'divan',
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Marca la anotación con destino para no perder la trazabilidad y
+      // mostrar el indicador en la UI.
+      updateBlock(idx, {
+        sentTo: { projectId, projectName: project?.name || projectId, ts: new Date().toISOString() },
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-alert
+      window.alert(`No se pudo enviar el crumb: ${e?.message || e}`);
+    }
+  }
+
   return (
     <div className="annotated-md">
       {blocks.map((b, idx) => (
@@ -115,6 +147,8 @@ export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '',
           ann={annotations[idx]}
           onChange={(patch) => updateBlock(idx, patch)}
           disabled={!loaded || !briefingId}
+          projects={projects}
+          onSendToProject={(pid) => sendBlockToProject(idx, pid)}
         >
           <BlockContent block={b} />
         </AnnotatedBlock>
@@ -123,11 +157,17 @@ export function AnnotatedMarkdown({ text, briefingId, apiBase = '', apiKey = '',
   );
 }
 
-function AnnotatedBlock({ ann, onChange, disabled, children }) {
+function titleFromText(text) {
+  const cleaned = String(text || '').replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim();
+  return cleaned.slice(0, 80) || 'Fragmento del Diván';
+}
+
+function AnnotatedBlock({ ann, onChange, disabled, children, projects = null, onSendToProject }) {
   const highlight = !!ann?.highlight;
   const strike = !!ann?.strike;
   const comment = ann?.comment || '';
-  const hasAny = highlight || strike || !!comment;
+  const sentTo = ann?.sentTo || null;
+  const hasAny = highlight || strike || !!comment || !!sentTo;
 
   const cls = ['ann-block'];
   if (highlight) cls.push('ann-block-highlight');
@@ -139,10 +179,24 @@ function AnnotatedBlock({ ann, onChange, disabled, children }) {
     onChange({ comment: value.trim() });
   }
 
+  function handleSendChange(e) {
+    const pid = e.target.value;
+    e.target.value = '';
+    if (!pid) return;
+    if (typeof onSendToProject === 'function') onSendToProject(pid);
+  }
+
+  const activeProjects = Array.isArray(projects)
+    ? projects.filter((p) => p.status !== 'archivado' && p.status !== 'archived')
+    : null;
+
   return (
     <div className={cls.join(' ')}>
       <div className="ann-block-body">{children}</div>
       {comment && <div className="ann-comment">💬 {comment}</div>}
+      {sentTo && (
+        <div className="ann-sent-to">↗ Enviado como crumb a <strong>{sentTo.projectName}</strong></div>
+      )}
       {!disabled && (
         <div className="ann-toolbar">
           <button
@@ -163,11 +217,24 @@ function AnnotatedBlock({ ann, onChange, disabled, children }) {
             onClick={editComment}
             title="Comentar"
           >💬</button>
+          {activeProjects && activeProjects.length > 0 && (
+            <select
+              className="ann-send-select"
+              defaultValue=""
+              onChange={handleSendChange}
+              title="Enviar este bloque como crumb a un proyecto"
+            >
+              <option value="">→ a proyecto…</option>
+              {activeProjects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
           {hasAny && (
             <button
               type="button"
               className="ann-btn ann-btn-clear"
-              onClick={() => onChange({ highlight: false, strike: false, comment: '' })}
+              onClick={() => onChange({ highlight: false, strike: false, comment: '', sentTo: null })}
               title="Limpiar"
             >✕</button>
           )}

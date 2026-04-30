@@ -335,6 +335,23 @@
   font-weight: 600;
 }
 
+.divan-degraded {
+  margin-left: 6px;
+  color: #b45309;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-style: italic;
+  cursor: help;
+}
+
+.divan-thread-hint {
+  margin: 4px 4px 0;
+  font-size: 11px;
+  color: var(--text-tertiary, #9a9a9a);
+  font-style: italic;
+}
+
 .divan-turn-content {
   font-size: 14px;
   line-height: 1.55;

@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from './api.js';
-import { parseMarkdownBlocks } from './briefing-utils.jsx';
+import { AnnotatedMarkdown } from './briefing-utils.jsx';
 
 const DEPTHS = [
   { id: 'rapido', label: 'Rápido', estimateUsd: 0.005 },
@@ -132,9 +132,16 @@ export default function DivanView({ apiBase = '', t, projects = [] }) {
           role: 'assistant',
           content: data.markdown,
           modeDraft: data.modelDraftDetected || null,
+          briefingId: data.briefingId || null,
           model: data.model,
           depth: data.depth,
           usage: data.usage,
+          modeName: selectedMode?.name || null,
+          modeColor: selectedMode?.color || null,
+          generatedAt: data.briefingId || new Date().toISOString(),
+          degraded: Array.isArray(data.degraded) ? data.degraded : [],
+          truncated: !!data.truncated,
+          estimatedContextTokens: data.estimatedContextTokens || null,
         },
       ]);
       setUserInput('');
@@ -147,48 +154,6 @@ export default function DivanView({ apiBase = '', t, projects = [] }) {
       setError(e?.detail || e?.error || 'Error al pensar.');
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function handleSaveCrumb(content, projectId) {
-    if (!projectId) return;
-    try {
-      await api.createCrumb({
-        projectId,
-        title: titleFromMarkdown(content),
-        body: content,
-        source: 'claude-web',
-        timestamp: new Date().toISOString(),
-      });
-      flash(`Guardado como crumb en ${projectMap[projectId]?.name || projectId}`);
-    } catch (e) {
-      setError(e?.detail || e?.error || 'No se pudo guardar el crumb.');
-    }
-  }
-
-  async function handlePromoteIdea(content) {
-    const name = window.prompt('Nombre del proyecto idea:');
-    if (!name) return;
-    const slug = slugify(name);
-    try {
-      await api.createProject({
-        id: slug,
-        name,
-        description: titleFromMarkdown(content).slice(0, 120),
-        status: 'idea',
-        color: selectedMode?.color || '#3B82F6',
-      });
-      await api.createCrumb({
-        projectId: slug,
-        title: 'Origen: Diván',
-        body: content,
-        source: 'claude-web',
-        isIdea: true,
-        timestamp: new Date().toISOString(),
-      });
-      flash(`Proyecto idea creado: ${name}`);
-    } catch (e) {
-      setError(e?.detail || e?.error || 'No se pudo crear el proyecto idea.');
     }
   }
 
@@ -287,6 +252,28 @@ export default function DivanView({ apiBase = '', t, projects = [] }) {
             onChange={(e) => setProjectSearch(e.target.value)}
             onFocus={() => setShowProjectPicker(true)}
           />
+          <button
+            className="divan-project-toggle"
+            type="button"
+            onClick={() => {
+              const activeIds = projects
+                .filter((p) => p.status !== 'archivado' && p.status !== 'archived')
+                .map((p) => p.id);
+              setSelectedProjectIds(activeIds);
+            }}
+            title="Seleccionar todos los proyectos activos"
+          >
+            Todos activos
+          </button>
+          <button
+            className="divan-project-toggle"
+            type="button"
+            onClick={() => setSelectedProjectIds([])}
+            disabled={selectedProjectIds.length === 0}
+            title="Quitar todas las selecciones"
+          >
+            Limpiar
+          </button>
           <button
             className="divan-project-toggle"
             type="button"
@@ -408,20 +395,31 @@ export default function DivanView({ apiBase = '', t, projects = [] }) {
               <Turn
                 key={idx}
                 turn={turn}
+                apiBase={apiBase}
+                projects={projects}
                 onCreateMode={handleCreateModeFromDraft}
               />
             ))}
           </div>
 
+          <div className="divan-thread-hint">
+            Pasa el cursor sobre cualquier bloque para resaltar (H), tachar (S),
+            comentar o enviarlo como crumb a un proyecto. Todo queda guardado y
+            aparece en la pestaña Subrayados.
+          </div>
+
           {showActionsForLast && (
-            <ResponseActions
-              content={lastAssistant.content}
-              projects={projects}
-              hasHistory={history.length >= 2}
-              onSaveCrumb={handleSaveCrumb}
-              onPromoteIdea={handlePromoteIdea}
-              onSaveSession={handleSaveSession}
-            />
+            <div className="divan-response-actions">
+              <button
+                type="button"
+                className="divan-action-btn"
+                onClick={handleSaveSession}
+                disabled={history.length < 2}
+                title="Persiste el hilo conversacional para retomarlo más tarde"
+              >
+                Guardar para iterar
+              </button>
+            </div>
           )}
         </Section>
       )}
@@ -485,7 +483,7 @@ function ProjectGroup({ label, projects, selectedIds, onToggle, muted }) {
   );
 }
 
-function Turn({ turn, onCreateMode }) {
+function Turn({ turn, apiBase, projects, onCreateMode }) {
   if (turn.role === 'user') {
     return (
       <div className="divan-turn divan-turn-user">
@@ -495,95 +493,41 @@ function Turn({ turn, onCreateMode }) {
     );
   }
 
-  // Assistant: si trae draft de modo, renderizar formulario
+  // Assistant: si trae draft de modo, renderizar formulario.
   if (turn.modeDraft) {
     return <ModeDraftForm draft={turn.modeDraft} onCreate={onCreateMode} />;
   }
 
+  const sourceLabel = turn.modeName
+    ? `Diván · ${turn.modeName} · ${formatTurnDate(turn.generatedAt)}`
+    : `Diván · ${formatTurnDate(turn.generatedAt)}`;
+
   return (
     <div className="divan-turn divan-turn-assistant">
-      <div className="divan-turn-role">Diván</div>
-      <SimpleMarkdown text={turn.content} />
-    </div>
-  );
-}
-
-function SimpleMarkdown({ text }) {
-  const blocks = parseMarkdownBlocks(text);
-  return (
-    <div className="divan-markdown">
-      {blocks.map((b, i) => <Block key={i} block={b} />)}
-    </div>
-  );
-}
-
-function Block({ block }) {
-  const c = renderInline(block.content);
-  if (block.type === 'h1') return <h2>{c}</h2>;
-  if (block.type === 'h2') return <h3>{c}</h3>;
-  if (block.type === 'h3') return <h4>{c}</h4>;
-  if (block.type === 'li') return <div className="divan-li">• {c}</div>;
-  return <p>{c}</p>;
-}
-
-function renderInline(text) {
-  const parts = [];
-  const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let lastIdx = 0, key = 0, m;
-  while ((m = regex.exec(text)) !== null) {
-    if (m.index > lastIdx) parts.push(text.slice(lastIdx, m.index));
-    const tok = m[0];
-    if (tok.startsWith('**')) parts.push(<strong key={key++}>{tok.slice(2, -2)}</strong>);
-    else parts.push(<code key={key++}>{tok.slice(1, -1)}</code>);
-    lastIdx = m.index + tok.length;
-  }
-  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
-  return parts.length ? parts : text;
-}
-
-function ResponseActions({ content, projects, hasHistory, onSaveCrumb, onPromoteIdea, onSaveSession }) {
-  const [crumbProjectId, setCrumbProjectId] = useState('');
-  const activeProjects = projects.filter((p) => p.status !== 'archivado' && p.status !== 'archived');
-  return (
-    <div className="divan-response-actions">
-      <div className="divan-action-group">
-        <select
-          className="divan-action-select"
-          value={crumbProjectId}
-          onChange={(e) => setCrumbProjectId(e.target.value)}
-        >
-          <option value="">Proyecto destino…</option>
-          {activeProjects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="divan-action-btn"
-          disabled={!crumbProjectId}
-          onClick={() => onSaveCrumb(content, crumbProjectId)}
-        >
-          Guardar como crumb
-        </button>
+      <div className="divan-turn-role">
+        Diván{turn.modeName ? ` · ${turn.modeName}` : ''}
+        {turn.degraded && turn.degraded.length > 0 && (
+          <span className="divan-degraded" title={turn.degraded.join(' · ')}>
+            · contexto reducido
+          </span>
+        )}
       </div>
-      <button
-        type="button"
-        className="divan-action-btn"
-        onClick={() => onPromoteIdea(content)}
-      >
-        Promover a proyecto idea
-      </button>
-      <button
-        type="button"
-        className="divan-action-btn"
-        onClick={onSaveSession}
-        disabled={!hasHistory}
-        title={hasHistory ? '' : 'Necesitas al menos un turno para guardar'}
-      >
-        Guardar para iterar
-      </button>
+      <AnnotatedMarkdown
+        text={turn.content}
+        briefingId={turn.briefingId}
+        apiBase={apiBase}
+        projects={projects}
+        sourceLabel={sourceLabel}
+      />
     </div>
   );
+}
+
+function formatTurnDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  } catch { return ''; }
 }
 
 function ModeDraftForm({ draft, onCreate }) {
@@ -668,20 +612,3 @@ function Field({ label, full, children }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-
-function titleFromMarkdown(md) {
-  const firstLine = String(md || '').split('\n').map((l) => l.replace(/^#+\s*/, '').trim()).find(Boolean) || '';
-  return firstLine.slice(0, 80) || 'Idea del Diván';
-}
-
-function slugify(s) {
-  return String(s)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40) || `proj-${Math.random().toString(36).slice(2, 8)}`;
-}
