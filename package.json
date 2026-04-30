@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "sync": "node --env-file=agent/.env.local agent/sync.js",
-    "setup-claude": "node scripts/setup-claude.mjs"
+    "setup-claude": "node scripts/setup-claude.mjs",
+    "seed-divan-modes": "node --env-file=.env.local scripts/seed-divan-modes.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
