@@ -18,12 +18,15 @@ export default function BriefingsView({ apiBase = '', apiKey = '', t, projects =
     setError(null);
     try {
       const isProject = filter.kind === 'project' && filter.projectId;
+      const isDivan = filter.kind === 'divan';
       const spendingUrl = isProject
         ? `${apiBase}/api/briefing/spending?projectId=${encodeURIComponent(filter.projectId)}`
         : `${apiBase}/api/briefing/spending`;
       const historyUrl = isProject
         ? `${apiBase}/api/briefing/history?kind=project&projectId=${encodeURIComponent(filter.projectId)}`
-        : `${apiBase}/api/briefing/history?kind=daily`;
+        : isDivan
+          ? `${apiBase}/api/briefing/history?kind=divan`
+          : `${apiBase}/api/briefing/history?kind=daily`;
       const [historyRes, spendingRes] = await Promise.all([
         fetch(historyUrl),
         fetch(spendingUrl),
@@ -63,7 +66,9 @@ export default function BriefingsView({ apiBase = '', apiKey = '', t, projects =
 
   const historyHeading = filter.kind === 'project' && filter.projectId
     ? `Últimos briefings · ${projectsMap[filter.projectId] || filter.projectId}`
-    : 'Últimos pulsos diarios';
+    : filter.kind === 'divan'
+      ? 'Últimos pensares del Diván'
+      : 'Últimos pulsos diarios';
 
   return (
     <div>
@@ -82,6 +87,13 @@ export default function BriefingsView({ apiBase = '', apiKey = '', t, projects =
             type="button"
           >
             Solo pulso diario
+          </button>
+          <button
+            className={`spending-tab ${filter.kind === 'divan' ? 'active' : ''}`}
+            onClick={() => setFilter({ kind: 'divan', projectId: '' })}
+            type="button"
+          >
+            Diván
           </button>
           <select
             className="spending-select"
@@ -162,14 +174,27 @@ function SpendingCard({ label, total, count, byKind, remaining, isCap, showBreak
         {count} {count === 1 ? 'generación' : 'generaciones'}
         {isCap && typeof remaining === 'number' && (<> · ${remaining} restantes</>)}
       </div>
-      {showBreakdown && byKind && (byKind.daily || byKind.project) && (
+      {showBreakdown && byKind && (byKind.daily || byKind.project || byKind.divan) && (
         <div className="spending-card-breakdown">
           {byKind.daily > 0 && <span>daily ${byKind.daily}</span>}
           {byKind.project > 0 && <span>project ${byKind.project}</span>}
+          {byKind.divan > 0 && <span>diván ${byKind.divan}</span>}
         </div>
       )}
     </div>
   );
+}
+
+function cardTag(b) {
+  if (b.kind === 'project') return briefingTag(b);
+  if (b.kind === 'divan') {
+    const parts = ['diván'];
+    if (b.modeName) parts.push(b.modeName);
+    if (b.depth) parts.push(b.depth);
+    if (b.model) parts.push(b.model);
+    return parts.join(' · ');
+  }
+  return `pulso · ${b.model}`;
 }
 
 function BriefingCard({ b, expanded, onToggle, apiBase, apiKey }) {
@@ -188,16 +213,22 @@ function BriefingCard({ b, expanded, onToggle, apiBase, apiKey }) {
           <span className="briefing-card-rel">· {formatRelative(b.generatedAt)}</span>
         </div>
         <div className="briefing-card-meta">
-          <span>{b.kind === 'project' ? briefingTag(b) : `pulso · ${b.model}`}</span>
+          <span>{cardTag(b)}</span>
           <span>·</span>
           <span>${b.usage?.costUsd ?? '?'}</span>
           {typeof b.projectCount === 'number' && (
             <><span>·</span><span>{b.projectCount} proyectos</span></>
           )}
+          {b.kind === 'divan' && Array.isArray(b.projectIds) && b.projectIds.length > 0 && (
+            <><span>·</span><span>{b.projectIds.length} {b.projectIds.length === 1 ? 'proyecto' : 'proyectos'}</span></>
+          )}
         </div>
       </header>
       {expanded && (
         <div className="briefing-card-body">
+          {b.kind === 'divan' && b.userQuestion && (
+            <blockquote className="briefing-card-question">{b.userQuestion}</blockquote>
+          )}
           <AnnotatedMarkdown
             text={b.markdown}
             briefingId={b.generatedAt}

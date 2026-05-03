@@ -472,6 +472,19 @@
 
 .briefing-card-body strong { font-weight: 500; }
 
+.briefing-card-question {
+  margin: 12px 0 16px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-divan, #6366F1);
+  background: rgba(99, 102, 241, 0.06);
+  font-style: italic;
+  color: var(--text-secondary, #6b6b6b);
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 0 6px 6px 0;
+  white-space: pre-wrap;
+}
+
 /* ========================================================================= */
 /* Sección de gastos (en la pestaña Briefings)                                */
 /* ========================================================================= */
