@@ -12,6 +12,15 @@ export default async function handler(req, res) {
   const { id } = req.query;
   const kv = await getKv();
 
+  if (req.method === 'GET') {
+    const exists = await kv.sIsMember(keys.projectSet, id);
+    if (!exists) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    const project = await kv.hGetAll(keys.project(id));
+    return res.status(200).json({ project: { id, ...project } });
+  }
+
   if (req.method === 'PUT') {
     const exists = await kv.sIsMember(keys.projectSet, id);
     if (!exists) {

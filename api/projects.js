@@ -1,5 +1,7 @@
-import { getKv, keys, getAllProjects } from './_lib/kv.js';
+import { getKv, keys, getAllProjects, getAllProjectsBare } from './_lib/kv.js';
 import { checkAuth, setCors } from './_lib/auth.js';
+
+const ARCHIVED_STATUSES = new Set(['archivado', 'archived']);
 
 export default async function handler(req, res) {
   setCors(res);
@@ -10,7 +12,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const projects = await getAllProjects();
+    const bare = req.query.bare === 'true' || req.query.bare === '1';
+    const includeArchived = !(req.query.includeArchived === 'false' || req.query.includeArchived === '0');
+
+    let projects = bare ? await getAllProjectsBare() : await getAllProjects();
+    if (!includeArchived) {
+      projects = projects.filter((p) => !ARCHIVED_STATUSES.has(p.status));
+    }
     return res.status(200).json({ projects });
   }
 

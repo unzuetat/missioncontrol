@@ -53,6 +53,23 @@ export async function getAllProjects() {
   return projects;
 }
 
+// Lista ligera para detección en slash commands: solo id, name, repoUrl, status.
+// No carga lastCrumb (un fetch extra por proyecto). ~80 tokens/proyecto vs ~250 del minimal.
+export async function getAllProjectsBare() {
+  const kv = await getClient();
+  const ids = await kv.sMembers(keys.projectSet);
+  if (!ids || ids.length === 0) return [];
+
+  const projects = [];
+  for (const id of ids) {
+    const data = await kv.hmGet(keys.project(id), ['name', 'repoUrl', 'status']);
+    if (data && data[0]) {
+      projects.push({ id, name: data[0], repoUrl: data[1] || '', status: data[2] || '' });
+    }
+  }
+  return projects;
+}
+
 export async function getProjectCrumbs(projectId, limit) {
   const kv = await getClient();
   const stop = typeof limit === 'number' && limit > 0 ? limit - 1 : -1;
