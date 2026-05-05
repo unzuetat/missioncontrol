@@ -61,24 +61,68 @@ function fail(err) {
   };
 }
 
+// Normaliza header para comparar: lowercase, trim, em-dash → guión.
+function normHeader(h) {
+  return h.toLowerCase().trim().replace(/—/g, '-').replace(/\s+/g, ' ');
+}
+
+// Extrae solo las secciones `## ...` cuyo título matchee `wanted` (case-insensitive,
+// normaliza guiones). Devuelve también `availableSections` con todos los `##` del archivo.
+function extractSections(content, wanted) {
+  const wantedSet = new Set((wanted || []).map(normHeader));
+  const lines = content.split('\n');
+  const out = [];
+  const available = [];
+  let include = false;
+
+  for (const line of lines) {
+    const m = line.match(/^##\s+(.+?)\s*$/);
+    if (m && !line.startsWith('### ')) {
+      const title = m[1];
+      available.push(title);
+      include = wantedSet.has(normHeader(title));
+      if (include) out.push(line);
+    } else if (include) {
+      out.push(line);
+    }
+  }
+
+  return { content: out.join('\n').trim(), availableSections: available };
+}
+
 const tools = [
   // ───── LECTURA (pull desde cualquier Claude) ─────
   {
     name: 'mc_list_projects',
-    description: 'Lista todos los proyectos de Mission Control. Recomendado: minimal=true en /export-mc y /import-mc — devuelve metadatos (id, name, status, repoUrl, URLs y ramas test/prod, color, techStack) sin lastCrumb (que es lo que pesa, ~25 KB → ~3 KB). Sin minimal incluye lastCrumb completo de cada proyecto.',
+    description: 'Lista proyectos de Mission Control. Para detección en /import-mc y /export-mc usar bare=true + includeArchived=false (~80 tokens/proyecto, ~4× más ligero que minimal y filtra archivados). bare=true devuelve solo {id, name, repoUrl, status}. minimal=true omite el lastCrumb. includeArchived=false (default true) excluye proyectos con status archivado/archived.',
     inputSchema: {
       type: 'object',
       properties: {
-        minimal: { type: 'boolean', description: 'Si true, omite el lastCrumb de cada proyecto. Mantiene metadatos suficientes para detectar y mostrar URLs/ramas. Default false.' },
+        bare: { type: 'boolean', description: 'Si true, devuelve solo {id, name, repoUrl, status} por proyecto. Recomendado para detección por repo. Default false.' },
+        minimal: { type: 'boolean', description: 'Si true, omite el lastCrumb de cada proyecto. Default false. Ignorado si bare=true.' },
+        includeArchived: { type: 'boolean', description: 'Si false, excluye proyectos archivados. Default true.' },
       },
       additionalProperties: false,
     },
-    handler: async ({ minimal } = {}) => {
-      const data = await mcFetch('/api/projects');
-      if (!minimal) return ok(data);
+    handler: async ({ bare, minimal, includeArchived } = {}) => {
+      const query = {};
+      if (bare) query.bare = 'true';
+      if (includeArchived === false) query.includeArchived = 'false';
+      const data = await mcFetch('/api/projects', { query });
+      if (bare || !minimal) return ok(data);
       const projects = (data.projects || []).map(({ lastCrumb, ...rest }) => rest);
       return ok({ projects });
     },
+  },
+  {
+    name: 'mc_get_project_meta',
+    description: 'Metadatos de un proyecto por id (URLs, ramas, color, stack, descripción, status) sin crumbs ni files. Pareja natural de mc_list_projects({bare:true}): tras detectar el match por repoUrl, sacar el resto de campos del proyecto matcheado.',
+    inputSchema: {
+      type: 'object',
+      properties: { projectId: { type: 'string', description: 'ID del proyecto, ej. "mission-control"' } },
+      required: ['projectId'],
+    },
+    handler: async ({ projectId }) => ok(await mcFetch(`/api/projects/${projectId}`)),
   },
   {
     name: 'mc_get_project',
@@ -132,20 +176,27 @@ const tools = [
   },
   {
     name: 'mc_get_file',
-    description: 'Contenido de un archivo concreto por projectId + nombre. Atajo cómodo para leer CONTEXT.md o DEPLOY_STATUS.md de un proyecto sin filtrar el listado.',
+    description: 'Contenido de un archivo concreto por projectId + nombre. Atajo cómodo para leer CONTEXT.md o DEPLOY_STATUS.md sin filtrar el listado. Pasa `sections` (array de títulos `##`) para devolver solo esas secciones del CONTEXT.md — recorta ~70-80% del payload manteniendo lo vivo. Siempre devuelve `availableSections` con todos los headers detectados.',
     inputSchema: {
       type: 'object',
       properties: {
         projectId: { type: 'string' },
         name: { type: 'string', description: 'Nombre exacto del archivo, ej. "CONTEXT.md"' },
+        sections: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Opcional. Lista de títulos de sección `##` a devolver. Match case-insensitive, normaliza guiones (— y -). Si ninguno coincide, content será "" — usa availableSections para ver qué hay.',
+        },
       },
       required: ['projectId', 'name'],
     },
-    handler: async ({ projectId, name }) => {
+    handler: async ({ projectId, name, sections }) => {
       const { files = [] } = await mcFetch('/api/files', { query: { projectId } });
       const file = files.find((f) => f.name === name);
       if (!file) throw new Error(`Archivo '${name}' no encontrado en proyecto '${projectId}'`);
-      return ok(file);
+      if (!Array.isArray(sections) || sections.length === 0) return ok(file);
+      const { content, availableSections } = extractSections(file.content || '', sections);
+      return ok({ ...file, content, availableSections });
     },
   },
   {

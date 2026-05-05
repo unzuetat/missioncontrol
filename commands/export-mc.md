@@ -13,7 +13,7 @@ Cinco pasos en este orden: **detectar proyecto** (paso 0, estricto) → actualiz
 ## 0 · Detectar el proyecto (regla estricta — preguntar ante cualquier duda)
 
 1. Ejecuta `git remote get-url origin` en el cwd. Si falla (no es repo git), `remoteUrl = null`.
-2. Llama a `mc_list_projects` con `{ minimal: true }` (omite `lastCrumb` de cada proyecto y deja la respuesta ~10× más pequeña — para la detección no hace falta más).
+2. Llama a `mc_list_projects` con `{ bare: true, includeArchived: false }` (devuelve solo `{id, name, repoUrl, status}` por proyecto activo — ~80 tokens/proyecto, ~4× más ligero que minimal). Si tras esto hay 0 matches por repoUrl, repite con `{ bare: true, includeArchived: true }` para incluir archivados.
 3. Normaliza `remoteUrl` y cada `repoUrl` de MC: minúsculas, sin `.git`, sin `http(s)://`, sin `www.`. Ej.: `https://github.com/unzuetat/missioncontrol.git` → `github.com/unzuetat/missioncontrol`.
 
 **Auto-usar un proyecto SIN preguntar — solo si se cumplen LAS DOS condiciones:**
@@ -67,16 +67,25 @@ Llama a `mc_add_crumbs` con todos los crumbs en un solo batch.
 
 ## 3 · CONTEXT.md — snapshot del proyecto
 
-Genera un CONTEXT.md con estas secciones:
+### Headers canónicos (contrato — no inventes variantes)
 
-- **Qué es** (1-2 frases)
-- **Tech stack**
-- **Arquitectura** (estructura de archivos clave)
-- **Estado actual — funciona**
-- **Estado actual — pendiente** (próximos pasos concretos)
-- **Decisiones importantes** (tradeoffs tomados, convenciones)
-- **Despliegues** (tabla: entorno / URL / rama para test y prod)
-- **URLs** (repo, recursos externos)
+Estos son los `## headers` exactos que `/import-mc` espera para poder cargar solo las secciones vivas. Mantenlos literalmente, en este orden, con guion em (`—`) donde se indica:
+
+- `## Qué es` (1-2 frases)
+- `## Tech stack`
+- `## Arquitectura` (estructura de archivos clave)
+- `## Estado actual — funciona`
+- `## Estado actual — pendiente` (próximos pasos concretos)
+- `## Decisiones importantes` (tradeoffs tomados, convenciones)
+- `## Despliegues` (tabla: entorno / URL / rama para test y prod)
+- `## URLs` (repo, recursos externos)
+- `## Última actualización` (opcional, fecha + 1 línea de qué cambió en esta sesión)
+
+**Por qué importa**: `/import-mc` carga por defecto solo `Estado actual — funciona`, `Estado actual — pendiente` y `URLs` para no saturar el contexto. Si renombras un header, el filtro lo ignora y la sesión arranca sin esa sección. Las secciones largas (Decisiones, Arquitectura, Tech stack) viven en MC y se cargan on-demand vía `mc_get_file` con `sections=[…]`.
+
+Si necesitas añadir una sección nueva, añádela también al canon en este archivo y en `/import-mc` antes de empezar a usarla.
+
+### Subir el archivo
 
 Si ya hay un CONTEXT.md previo (mira con `mc_get_file` si la sesión actual no lo tiene en contexto — p.ej. tras un `/clear`), **actualízalo integrando lo nuevo** en vez de sobreescribir a ciegas. Si vienes de una sesión que ya lo cargó (típico tras `/import-mc` al inicio), úsalo del contexto y no vuelvas a pedirlo.
 
