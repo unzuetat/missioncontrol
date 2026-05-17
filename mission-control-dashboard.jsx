@@ -1253,6 +1253,162 @@ function FilePanel({ files, onCreate, onUpdate, onDelete, t }) {
   );
 }
 
+function launcherLinks(p) {
+  // Un botón por cada URL del proyecto. Etiqueta: "Local" para localhost,
+  // si no el host. Dedupe por URL.
+  const raw = [
+    { url: p.prodUrl, kind: "prod" },
+    { url: p.testUrl, kind: "test" },
+    { url: p.vercelUrl, kind: "vercel" },
+  ];
+  const seen = new Set();
+  const out = [];
+  for (const { url } of raw) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const isLocal = /127\.0\.0\.1|localhost/.test(url);
+    const host = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    out.push({ url, isLocal, label: isLocal ? `Local · ${host}` : host });
+  }
+  return out;
+}
+
+function launcherAccessUrl(p) {
+  return p.prodUrl || p.testUrl || p.vercelUrl || "";
+}
+
+function LauncherCard({ project, t, isFav, onToggleFav }) {
+  const links = launcherLinks(project);
+  const has = links.length > 0;
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 10,
+      minHeight: 64, padding: "12px 16px", borderRadius: 10,
+      border: "1px solid var(--border-primary)", background: "var(--bg-card)",
+      opacity: has ? 1 : 0.55, transition: "all 0.15s",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+            background: project.color || "#888",
+            boxShadow: has ? `0 0 8px ${(project.color || "#888")}80` : "none",
+          }} />
+          <div style={{
+            fontSize: 14, fontWeight: 600, color: "var(--text-primary)",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>
+            {project.name}
+          </div>
+        </div>
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFav(project.id); }}
+          style={{
+            all: "unset", cursor: "pointer", fontSize: 16, lineHeight: 1,
+            color: isFav ? "#F5C518" : "var(--text-muted)", padding: 4, flexShrink: 0,
+          }}
+          title={t("launcherFav")}
+        >
+          {isFav ? "★" : "☆"}
+        </button>
+      </div>
+      {has ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {links.map((l) => (
+            <a
+              key={l.url} href={l.url} target="_blank" rel="noopener noreferrer"
+              style={{
+                fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                padding: "6px 10px", borderRadius: 6, textDecoration: "none",
+                border: `1px solid ${l.isLocal ? "#F59E0B45" : "var(--border-primary)"}`,
+                background: l.isLocal ? "#F59E0B14" : "var(--bg-inset)",
+                color: l.isLocal ? "#F59E0B" : "var(--text-secondary)",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                maxWidth: "100%",
+              }}
+              title={l.url}
+            >
+              {l.label} ↗
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div style={{
+          fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-muted)",
+        }}>
+          {t("launcherNoUrl")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LauncherView({ projects, t }) {
+  const [q, setQ] = useState("");
+  const [favs, setFavs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mc_launcher_favs") || "[]"); }
+    catch { return []; }
+  });
+  const toggleFav = (id) => {
+    setFavs((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try { localStorage.setItem("mc_launcher_favs", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const needle = q.trim().toLowerCase();
+  const match = (p) =>
+    !needle ||
+    (p.name || "").toLowerCase().includes(needle) ||
+    (p.description || "").toLowerCase().includes(needle);
+  const filtered = projects.filter(match);
+  const favList = filtered.filter((p) => favs.includes(p.id));
+  const withUrl = filtered.filter((p) => !favs.includes(p.id) && launcherAccessUrl(p));
+  const noUrl = filtered.filter((p) => !favs.includes(p.id) && !launcherAccessUrl(p));
+
+  const Section = ({ label, items }) => items.length === 0 ? null : (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{
+        fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace",
+        textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 10,
+      }}>
+        {label} · {items.length}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+        {items.map((p) => (
+          <LauncherCard key={p.id} project={p} t={t}
+            isFav={favs.includes(p.id)} onToggleFav={toggleFav} />
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ animation: "fadeSlideIn 0.3s ease" }}>
+      <input
+        type="text" value={q} onChange={(e) => setQ(e.target.value)}
+        placeholder={t("launcherSearch")}
+        style={{
+          width: "100%", boxSizing: "border-box", marginBottom: 24,
+          padding: "12px 16px", borderRadius: 10, fontSize: 14,
+          border: "1px solid var(--border-primary)", background: "var(--bg-card)",
+          color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace",
+          outline: "none",
+        }}
+      />
+      {filtered.length === 0 && (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+          {t("launcherEmpty")}
+        </div>
+      )}
+      <Section label={t("launcherFav")} items={favList} />
+      <Section label={t("launcherWithUrl")} items={withUrl} />
+      <Section label={t("launcherNoUrl")} items={noUrl} />
+    </div>
+  );
+}
+
 function IdeasTestingView({ type, projects, onToggleDone, onEditCrumb, t, lang }) {
   const [allCrumbs, setAllCrumbs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1741,7 +1897,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 color: "var(--text-primary)", transition: "font-size 0.3s",
               }}
             >
-              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : view === "highlights" ? `📌 ${t("allHighlights")}` : view === "divan" ? t("allDivan") : "Mission Control"}
+              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : view === "highlights" ? `📌 ${t("allHighlights")}` : view === "divan" ? t("allDivan") : view === "lanzador" ? `🚀 ${t("launcherTitle")}` : "Mission Control"}
             </h1>
             {view === "detail" && selectedProject && (
               <>
@@ -1750,7 +1906,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 <ProjectLinks project={selectedProject} />
               </>
             )}
-            {(view === "ideas" || view === "testing" || view === "briefings" || view === "highlights" || view === "divan") && (
+            {(view === "ideas" || view === "testing" || view === "briefings" || view === "highlights" || view === "divan" || view === "lanzador") && (
               <button
                 onClick={() => setView("grid")}
                 style={{
@@ -1941,6 +2097,20 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                   >
                     {t("allDivan")}
                   </button>
+                  <button
+                    onClick={() => setView("lanzador")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 11,
+                      padding: "5px 12px", borderRadius: 6,
+                      background: "#10B98118", border: "1px solid #10B98135",
+                      color: "#10B981", fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = "#10B98128"; }}
+                    onMouseLeave={(e) => { e.target.style.background = "#10B98118"; }}
+                  >
+                    🚀 {t("allLauncher")}
+                  </button>
                   {archivedCount > 0 && (
                     <button
                       onClick={() => setShowArchived((v) => !v)}
@@ -2063,6 +2233,11 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
         {/* DIVÁN VIEW */}
         {!loading && view === "divan" && (
           <DivanView apiBase={API_BASE} t={t} projects={projects} />
+        )}
+
+        {/* LANZADOR VIEW */}
+        {!loading && view === "lanzador" && (
+          <LauncherView projects={visibleProjects} t={t} />
         )}
 
         {/* DETAIL VIEW */}
