@@ -50,7 +50,7 @@ export default async function handler(req, res) {
 
     const contextFile = files.find((f) => f.name === 'CONTEXT.md');
     const systemPrompt = flavor === 'executive' ? EXECUTIVE_SYSTEM_PROMPT : TECHNICAL_SYSTEM_PROMPT;
-    const userPrompt = buildUserPrompt(project, crumbs, contextFile);
+    const userPrompt = buildUserPrompt(project, crumbs, contextFile, flavor);
 
     const inputChars = systemPrompt.length + userPrompt.length;
     const inputTokens = Math.ceil(inputChars / CHARS_PER_TOKEN);
