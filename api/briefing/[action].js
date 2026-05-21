@@ -13,6 +13,7 @@ import budget from './_handlers/budget.js';
 import spending from './_handlers/spending.js';
 import annotations from './_handlers/annotations.js';
 import highlights from './_handlers/highlights.js';
+import estimate from './_handlers/estimate.js';
 
 const HANDLERS = {
   daily,
@@ -22,6 +23,7 @@ const HANDLERS = {
   spending,
   annotations,
   highlights,
+  estimate,
 };
 
 export default async function handler(req, res) {

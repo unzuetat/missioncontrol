@@ -24,6 +24,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
   const [loading, setLoading] = useState(true);
   const [generatingTier, setGeneratingTier] = useState(null);
   const [flavor, setFlavor] = useState('technical');
+  const [estimate, setEstimate] = useState(null);
   const [error, setError] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedIdx, setExpandedIdx] = useState(() => new Set());
@@ -37,6 +38,11 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     loadSpending();
     loadHighlights();
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    loadEstimate(flavor);
+  }, [projectId, flavor]);
 
   async function loadHistory() {
     setLoading(true);
@@ -82,6 +88,47 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     } catch {
       // silent: seccion opcional
     }
+  }
+
+  async function loadEstimate(currentFlavor) {
+    try {
+      const res = await fetch(
+        `${apiBase}/api/briefing/estimate?projectId=${encodeURIComponent(projectId)}&flavor=${encodeURIComponent(currentFlavor)}`
+      );
+      if (!res.ok) {
+        setEstimate(null);
+        return;
+      }
+      const data = await res.json();
+      setEstimate(data);
+    } catch {
+      setEstimate(null);
+    }
+  }
+
+  // Coste real preferido (último briefing con esa combo). Si no hay, estimación.
+  function tierCostLabel(tier) {
+    const recent = items.find(
+      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null
+    );
+    if (recent) return `$${recent.usage.costUsd.toFixed(2)}`;
+    if (estimate?.costs?.[tier.model] != null) {
+      return `~$${estimate.costs[tier.model].toFixed(2)}`;
+    }
+    return tier.price;
+  }
+
+  function tierCostTitle(tier) {
+    const recent = items.find(
+      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null
+    );
+    if (recent) {
+      return `Última generación (${flavor}, ${tier.modelShort}): $${recent.usage.costUsd.toFixed(2)} · ${recent.usage.inputTokens.toLocaleString()} in / ${recent.usage.outputTokens.toLocaleString()} out`;
+    }
+    if (estimate?.costs?.[tier.model] != null) {
+      return `Estimación (${flavor}, ${tier.modelShort}): ~$${estimate.costs[tier.model].toFixed(2)} · ${estimate.inputTokens.toLocaleString()} in + ~${estimate.estimatedOutputTokens.toLocaleString()} out`;
+    }
+    return tier.hint;
   }
 
   async function generate(tier) {
@@ -165,13 +212,13 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                   className={`project-briefing-tier ${tier.id === 'normal' ? 'is-primary' : 'is-secondary'}`}
                   onClick={() => generate(tier)}
                   disabled={anyGenerating}
-                  title={tier.hint}
+                  title={tierCostTitle(tier)}
                 >
                   <span className="project-briefing-tier-label">
                     {isGenerating ? 'Analizando…' : tier.label}
                   </span>
                   <span className="project-briefing-tier-model">{tier.modelShort}</span>
-                  <span className="project-briefing-tier-price">{tier.price}</span>
+                  <span className="project-briefing-tier-price">{tierCostLabel(tier)}</span>
                 </button>
               );
             })}
