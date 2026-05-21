@@ -25,6 +25,7 @@ import {
   getLatestBriefing,
   LIMITS,
 } from '../../_lib/briefing-helpers.js';
+import { extractSections } from '../../_lib/markdown.js';
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const ALLOWED_MODELS = new Set([
@@ -38,6 +39,27 @@ const ALLOWED_FLAVORS = new Set(['technical', 'executive']);
 
 export const CRUMBS_LIMIT = 30;         // histórico amplio para el profundo
 export const MAX_CONTEXT_CHARS = 8000;  // CONTEXT.md casi entero
+export const CRUMBS_WITH_BODY = 8;      // últimos N con body; el resto solo título+fecha
+
+// Secciones del CONTEXT.md que se cargan en el prompt, por flavor.
+// Si el CONTEXT.md no tiene ningún header `##` que matchee, se carga entero (compat).
+export const BRIEFING_SECTIONS = {
+  technical: [
+    'Qué es',
+    'Tech stack',
+    'Arquitectura',
+    'Estado actual — funciona',
+    'Estado actual — pendiente',
+    'Decisiones importantes',
+    'URLs',
+  ],
+  executive: [
+    'Qué es',
+    'Estado actual — funciona',
+    'Estado actual — pendiente',
+    'Decisiones importantes',
+  ],
+};
 
 const listKeyFor = (id) => `briefing:project:${id}:list`;
 const legacyKeyFor = (id) => `briefing:project:${id}:latest`;
@@ -108,7 +130,7 @@ export default async function handler(req, res) {
         system: systemPrompt,
         messages: [{
           role: 'user',
-          content: buildUserPrompt(project, crumbs, contextFile),
+          content: buildUserPrompt(project, crumbs, contextFile, flavor),
         }],
       });
 
@@ -226,17 +248,26 @@ Lo que movería la aguja en este horizonte, con secuencia. Prioridad sobre exhau
 ## Señales a vigilar
 Indicadores de que hay que reorientar: estancamiento, scope creep, desalineación con otros proyectos del portfolio. Omite si no hay nada relevante.`;
 
-export function buildUserPrompt(project, crumbs, contextFile) {
+export function buildUserPrompt(project, crumbs, contextFile, flavor = 'technical') {
+  // (2) Crumbs degradados: los CRUMBS_WITH_BODY más recientes con body, el resto solo metadatos.
   const crumbsTxt = crumbs.length
-    ? crumbs.map((c) => {
+    ? crumbs.map((c, idx) => {
         const flags = [c.isDone && '✓', c.isIdea && '💡', c.isTest && '🧪'].filter(Boolean).join(' ');
-        return `- [${c.timestamp}] (${c.source}) ${c.title}${c.body ? `\n  ${c.body}` : ''}${flags ? ` ${flags}` : ''}`;
+        const includeBody = idx < CRUMBS_WITH_BODY && c.body;
+        const bodyPart = includeBody ? `\n  ${c.body}` : '';
+        return `- [${c.timestamp}] (${c.source}) ${c.title}${bodyPart}${flags ? ` ${flags}` : ''}`;
       }).join('\n')
     : '_(sin crumbs)_';
 
-  const ctxTxt = contextFile
-    ? `\n\n### CONTEXT.md\n\n${String(contextFile.content).slice(0, MAX_CONTEXT_CHARS)}`
-    : '\n\n_(sin CONTEXT.md)_';
+  // (1) CONTEXT.md filtrado por secciones canónicas según flavor.
+  // Si el archivo no tiene ningún header `##` que matchee, se carga entero (compat).
+  let ctxTxt = '\n\n_(sin CONTEXT.md)_';
+  if (contextFile) {
+    const wanted = BRIEFING_SECTIONS[flavor] || BRIEFING_SECTIONS.technical;
+    const { content: filtered } = extractSections(contextFile.content || '', wanted);
+    const raw = filtered.length > 0 ? filtered : String(contextFile.content || '');
+    ctxTxt = `\n\n### CONTEXT.md\n\n${raw.slice(0, MAX_CONTEXT_CHARS)}`;
+  }
 
   return `# Proyecto: ${project.name}
 
