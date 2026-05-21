@@ -36,8 +36,8 @@ const ALLOWED_MODELS = new Set([
 const DEFAULT_FLAVOR = 'technical';
 const ALLOWED_FLAVORS = new Set(['technical', 'executive']);
 
-const CRUMBS_LIMIT = 30;         // histórico amplio para el profundo
-const MAX_CONTEXT_CHARS = 8000;  // CONTEXT.md casi entero
+export const CRUMBS_LIMIT = 30;         // histórico amplio para el profundo
+export const MAX_CONTEXT_CHARS = 8000;  // CONTEXT.md casi entero
 
 const listKeyFor = (id) => `briefing:project:${id}:list`;
 const legacyKeyFor = (id) => `briefing:project:${id}:latest`;
@@ -155,7 +155,7 @@ export default async function handler(req, res) {
 // ---------------------------------------------------------------------------
 // Prompts
 
-const TECHNICAL_SYSTEM_PROMPT = `Eres el Chief of Staff de Telmo, especializado en prepararle para meterse a fondo en un proyecto.
+export const TECHNICAL_SYSTEM_PROMPT = `Eres el Chief of Staff de Telmo, especializado en prepararle para meterse a fondo en un proyecto.
 
 Recibes el estado completo de UN proyecto: su CONTEXT.md, su histórico de actividad, decisiones tomadas. Tu trabajo es que cuando Telmo abra ese proyecto, tenga todo lo que necesita en la cabeza en 2 minutos de lectura.
 
@@ -187,7 +187,7 @@ Lo que se ha ido acumulando y conviene atajar pronto. Solo si hay algo real — 
 ## Contexto rápido
 Para volver al hilo: stack principal, decisiones arquitectónicas clave, convenciones del proyecto. Máximo 4-5 líneas.`;
 
-const EXECUTIVE_SYSTEM_PROMPT = `Eres un consultor estratégico de producto que acompaña a Telmo en la evaluación de sus proyectos personales. Tu trabajo NO es entrar en implementación — es evaluar dónde está el proyecto, hacia dónde va, y qué decisiones de dirección tomar.
+export const EXECUTIVE_SYSTEM_PROMPT = `Eres un consultor estratégico de producto que acompaña a Telmo en la evaluación de sus proyectos personales. Tu trabajo NO es entrar en implementación — es evaluar dónde está el proyecto, hacia dónde va, y qué decisiones de dirección tomar.
 
 Recibes el contexto completo del proyecto (CONTEXT.md, histórico de actividad, decisiones). Lo analizas desde una perspectiva de producto y estrategia, no de código.
 
@@ -226,7 +226,7 @@ Lo que movería la aguja en este horizonte, con secuencia. Prioridad sobre exhau
 ## Señales a vigilar
 Indicadores de que hay que reorientar: estancamiento, scope creep, desalineación con otros proyectos del portfolio. Omite si no hay nada relevante.`;
 
-function buildUserPrompt(project, crumbs, contextFile) {
+export function buildUserPrompt(project, crumbs, contextFile) {
   const crumbsTxt = crumbs.length
     ? crumbs.map((c) => {
         const flags = [c.isDone && '✓', c.isIdea && '💡', c.isTest && '🧪'].filter(Boolean).join(' ');
