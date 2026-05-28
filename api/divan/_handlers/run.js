@@ -272,11 +272,19 @@ async function runInSession({ kv, sessionId, userMessage, body, res }) {
 // ---------------------------------------------------------------------------
 // Helpers
 
+// One-shot: devuelve bloques en vez de string para que el contextBlock (estable
+// entre llamadas dentro de la misma sesión de uso) se pueda marcar como
+// cacheable. userMessage + lengthHint cambian cada turn → bloque sin cache.
+// Si contextBlock está por debajo del mínimo cacheable (~2k tokens para
+// Sonnet/Opus, ~2k para Haiku), Anthropic ignora el cache_control sin penalty.
 function composeUserContent(contextBlock, userMessage, depth) {
   const preset = DEPTH_PRESETS[depth] || DEPTH_PRESETS[DEFAULT_DEPTH];
   const label = DEPTH_LABELS[depth] || DEPTH_LABELS[DEFAULT_DEPTH];
   const lengthHint = `INSTRUCCIONES DE LONGITUD\n- Profundidad solicitada por el usuario: ${label} → apunta a ~${preset.targetWords} palabras.\n- Adapta la longitud al objetivo y al espacio del contexto: si el contexto es escueto, sé más breve aunque la profundidad sea alta; si hay mucha sustancia y la profundidad lo permite, desarrolla.\n- Tu cap duro de salida es ~${preset.maxOutputTokens} tokens. Asegúrate de cerrar la respuesta antes — no la dejes a medias.\n- Si el cap es ajustado y la idea es grande, sintetiza priorizando lo importante en lugar de quedarte cortado al final.`;
-  return `${contextBlock}\n\n---\n\nPETICIÓN DEL USUARIO:\n${userMessage}\n\n---\n\n${lengthHint}`;
+  return [
+    { type: 'text', text: contextBlock, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: `\n\n---\n\nPETICIÓN DEL USUARIO:\n${userMessage}\n\n---\n\n${lengthHint}` },
+  ];
 }
 
 function buildDivanBriefing({
@@ -310,10 +318,16 @@ function buildDivanBriefing({
 async function callLLM({ model, systemPrompt, maxOutputTokens, messages }) {
   const startedAt = Date.now();
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // System prompt como bloque cacheable: en sesiones largas y modos repetidos
+  // gana, en one-shots de mode poco usado puede estar por debajo del mínimo
+  // cacheable y Anthropic lo trata como input normal (sin penalty).
+  const system = [
+    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+  ];
   const response = await client.messages.create({
     model,
     max_tokens: maxOutputTokens,
-    system: systemPrompt,
+    system,
     messages,
   });
   const markdown = extractMarkdown(response);

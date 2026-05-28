@@ -6,6 +6,10 @@
  *   - Haiku 4.5:  $1 input / $5 output por 1M
  *   - Sonnet 4.6: $3 input / $15 output por 1M
  *   - Opus 4.7:   $5 input / $25 output por 1M
+ *
+ * Prompt caching (5-min TTL): escritura 1.25× input, lectura 0.10× input.
+ * Si la respuesta no trae los campos cache_* (sin caching o por debajo del
+ * mínimo cacheable), se trata como input normal.
  */
 export function computeCost(usage, model) {
   const rates = {
@@ -15,10 +19,19 @@ export function computeCost(usage, model) {
   };
   const r = rates[model] || rates['claude-sonnet-4-6'];
   const inputTokens = usage?.input_tokens || 0;
+  const cacheCreationTokens = usage?.cache_creation_input_tokens || 0;
+  const cacheReadTokens = usage?.cache_read_input_tokens || 0;
   const outputTokens = usage?.output_tokens || 0;
-  const costUsd = (inputTokens * r.in + outputTokens * r.out) / 1_000_000;
+  const costUsd = (
+    inputTokens * r.in +
+    cacheCreationTokens * r.in * 1.25 +
+    cacheReadTokens * r.in * 0.10 +
+    outputTokens * r.out
+  ) / 1_000_000;
   return {
     inputTokens,
+    cacheCreationTokens,
+    cacheReadTokens,
     outputTokens,
     costUsd: Number(costUsd.toFixed(4)),
   };
