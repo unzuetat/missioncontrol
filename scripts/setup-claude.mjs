@@ -71,9 +71,16 @@ if (!env) {
   fail(`Falta ${ENV_FILE}.\nCopia agent/.env.example a agent/.env.local y rellena MC_API_KEY antes de seguir.`);
 }
 const MC_API_KEY = env.MC_API_KEY;
-const MC_API_URL = env.MC_API_URL || 'https://missioncontrol-coral.vercel.app';
+const MC_API_URL = env.MC_API_URL;
 if (!MC_API_KEY) {
   fail(`${ENV_FILE} no tiene MC_API_KEY.`);
+}
+if (!MC_API_URL) {
+  fail(
+    `${ENV_FILE} no tiene MC_API_URL.\n` +
+    `Pon la URL de TU deploy de Vercel (ej. https://missioncontrol-XXXX.vercel.app).\n` +
+    `Antes había un fallback al backend del autor — se quitó a propósito: forzar el valor explícito impide conectarse sin querer a una Mission Control que no es la tuya.`
+  );
 }
 
 // ─── Paso 3: registrar MCP en ~/.claude.json ────────────────────────────────
