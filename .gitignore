@@ -10,3 +10,6 @@ dist/
 mcp-server/.env
 .gstack/
 *.pdf
+
+# Volcados locales de la BD (datos privados; el repo es público)
+backups/

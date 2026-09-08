@@ -34,8 +34,8 @@ dentro. Tus datos vivirán solo en tu infraestructura — nadie más los ve.
 - **Tiempo:** 45–60 min seguidos, sin prisa.
 - **Coste recurrente:** 0 € si no usas briefings con IA. Si los usas: tope de
   5 $/mes ya configurado en el código (Anthropic API).
-- Tus únicas dependencias gratis: GitHub, Vercel (Hobby), Redis Cloud (free
-  30 MB).
+- Tus únicas dependencias gratis: GitHub, Vercel (Hobby) y Upstash Redis (free
+  256 MB, se crea desde el propio panel de Vercel).
 
 ## Lo que necesitas antes de empezar
 
@@ -145,22 +145,17 @@ https://vercel.com/signup — pulsa **"Continue with GitHub"** para que use tu
 cuenta de GitHub. Es donde vivirá tu dashboard en internet. Plan **Hobby**
 (gratis) sobra.
 
-### Redis Cloud
+### Base de datos: Upstash Redis (desde Vercel)
 
-https://redis.io/try-free/ — donde vivirán tus datos (proyectos, notas,
-contextos). Crea una **free database**:
+Donde vivirán tus datos (proyectos, notas, contextos). **No hace falta crear
+cuenta en ningún sitio nuevo**: se crea desde el panel de Vercel en el paso 4,
+y Vercel mete sola la variable `REDIS_URL` en tu proyecto.
 
-1. Tras registrarte, elige plan **Free** (30 MB, suficiente para miles de
-   notas).
-2. Elige la región más cercana a ti (Frankfurt o Ireland en Europa).
-3. Cuando esté creada, abre la base de datos y busca un valor llamado
-   **"Public endpoint"** o **"Connection string"**. Copia el string completo.
-   Tendrá esta pinta:
-   ```
-   redis://default:CONTRASEÑA_LARGA@redis-12345.c123.eu-west-1.ec2.redns.redis-cloud.com:12345
-   ```
-   **Guárdalo en un sitio seguro** (un gestor de contraseñas, no en un
-   archivo de texto del escritorio). Lo llamaremos **`REDIS_URL`**.
+> **Por qué Upstash y no Redis Cloud.** El plan gratuito de Redis Cloud
+> **borra la base de datos, sin copia, tras 14 días sin uso**. Así se perdió
+> la instancia original de Mission Control el 2026-09-08. Upstash, si pasas 30
+> días sin usarla, la archiva con copia y la restauras con un clic. Además el
+> cron diario de la sección "Copias de seguridad" evita que llegue a pasar.
 
 ### (Opcional) Anthropic API
 
@@ -232,7 +227,10 @@ guardaste el REDIS_URL.
 | Nombre | Valor | Sensitive |
 |---|---|---|
 | `MC_API_KEY` | la que generaste en el paso 3 | ✅ Sí |
-| `REDIS_URL` | la que copiaste de Redis Cloud | ✅ Sí |
+| `REDIS_URL` | **no la metas a mano**: la crea la base de datos del paso 4b | — |
+| `CRON_SECRET` | una cadena aleatoria larga (`openssl rand -hex 32`) — protege el cron diario | ✅ Sí |
+| `BACKUP_REPO` | `tu-usuario/mc-backups` — repo **privado** donde irán los backups | No |
+| `BACKUP_GITHUB_TOKEN` | PAT fine-grained con **Contents: Read and write** SOLO sobre `mc-backups` | ✅ Sí |
 | `ANTHROPIC_API_KEY` (opcional) | la de Anthropic, si la pediste | ✅ Sí |
 | `GITHUB_TOKEN` (opcional) | un PAT de GitHub fine-grained read-only — para badges de tus repos | ✅ Sí |
 
@@ -243,6 +241,18 @@ de commits/PRs en cada proyecto): https://github.com/settings/personal-access-to
 4. Pulsa **Deploy**. Espera 1–2 min. Cuando termine, Vercel te da una URL
    tipo `https://missioncontrol-XXXX.vercel.app`. **Apúntala**, es tu
    **`MC_API_URL`**.
+
+4b. **Crea la base de datos.** En el proyecto de Vercel, pestaña **Storage** →
+   **Create Database** → **Upstash for Redis** → plan **Free** → región
+   europea (Frankfurt o Ireland) → conéctala al proyecto en los tres entornos.
+   Vercel añade `REDIS_URL` (y unas `KV_*` que no usamos) automáticamente.
+   Después ve a **Deployments** → menú `⋯` del último → **Redeploy**, para
+   que las funciones arranquen con la variable nueva.
+
+4c. **Crea el repo privado de backups** en https://github.com/new — nombre
+   `mc-backups`, **Private**, vacío. Y el token: https://github.com/settings/personal-access-tokens/new
+   → "Only select repositories" → `mc-backups` → Repository permissions →
+   **Contents: Read and write**. Ese es tu `BACKUP_GITHUB_TOKEN`.
 
 ### Smoke test (verifica que el backend vive)
 
@@ -363,10 +373,11 @@ A partir de ahora, cuando trabajes en ese proyecto:
 El "Diván" es un think tank cross-proyecto con 8 modos (utilidad, creativo,
 monetizar, conectar puntos…). Si quieres usarlo necesitas haber metido tu
 `ANTHROPIC_API_KEY` y rellenar los modos seed. En tu carpeta del repo, crea
-`.env.local` (en la raíz, NO en `agent/`) con:
+`.env.local` (en la raíz, NO en `agent/`). La forma más fácil es dejar que
+Vercel lo genere con las variables reales del proyecto (incluida `REDIS_URL`):
 
-```
-REDIS_URL=tu_redis_url
+```bash
+vercel env pull .env.local
 ```
 
 Y ejecuta:
@@ -416,11 +427,33 @@ mismo backend de Vercel. Pon un `MACHINE_ID` distinto en cada uno.
 
 ---
 
+## Copias de seguridad y señal de vida
+
+Mission Control lleva dos mecanismos para no volver a perder datos:
+
+1. **Cron diario en Vercel** (`vercel.json` → `/api/ops/daily`, 05:00 UTC):
+   escribe una clave en Redis (actividad real, así ningún plan gratuito la da
+   por abandonada) y **vuelca toda la base de datos a JSON** en tu repo privado
+   `mc-backups` (`backups/AAAA/AAAA-MM-DD.json` + `latest.json`). Necesita
+   `CRON_SECRET`, `BACKUP_REPO` y `BACKUP_GITHUB_TOKEN` (paso 4).
+2. **Scripts locales**, por si quieres una copia a mano o restaurar:
+   ```bash
+   npm run backup                         # → backups/mc-<fecha>.json (carpeta ignorada por git)
+   npm run restore -- backups/mc-X.json   # simulación: muestra qué haría
+   npm run restore -- latest.json --yes   # restaura de verdad (añade --wipe para vaciar antes)
+   ```
+   Usan el `REDIS_URL` de `.env.local`.
+
+Comprueba que funciona: `https://TU-URL/api/ops/status` muestra el último
+keepalive y el último backup. Si `lastBackup` sigue en `null` pasadas 24 h,
+revisa los logs del cron en Vercel (pestaña **Logs**, filtra por `ops`).
+
 ## Seguridad — léelo aunque sea por encima
 
-- **Tu `MC_API_KEY` y tu `REDIS_URL` son secretos.** No los subas a GitHub,
-  no los pongas en pastebins, no los enseñes. Si crees que se han filtrado,
-  rota la `MC_API_KEY` en Vercel y la contraseña de Redis Cloud.
+- **Tu `MC_API_KEY`, tu `REDIS_URL`, `CRON_SECRET` y `BACKUP_GITHUB_TOKEN` son
+  secretos.** No los subas a GitHub, no los pongas en pastebins, no los enseñes.
+  Si crees que se han filtrado, rota la `MC_API_KEY` y `CRON_SECRET` en Vercel,
+  regenera el token en GitHub y resetea la contraseña de la base en Upstash.
 - **El archivo `agent/.env.local` está en `.gitignore`** — no se sube por
   accidente. No quites esa línea.
 - **GETs son públicos en tu backend** (cualquiera con tu URL puede leer la

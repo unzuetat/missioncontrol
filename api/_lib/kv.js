@@ -4,7 +4,15 @@ let client;
 
 async function getClient() {
   if (!client) {
-    client = createClient({ url: process.env.REDIS_URL });
+    client = createClient({
+      url: process.env.REDIS_URL || process.env.KV_URL,
+      socket: {
+        // Fallar rápido en vez de colgar la función: si Redis no responde en 5 s
+        // devolvemos 500 y el dashboard puede mostrar un error claro.
+        connectTimeout: 5000,
+        reconnectStrategy: (retries) => (retries > 2 ? new Error('Redis inalcanzable') : 200),
+      },
+    });
     client.on('error', (err) => console.error('Redis error:', err));
     await client.connect();
   }
