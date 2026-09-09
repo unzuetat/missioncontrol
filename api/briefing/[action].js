@@ -1,5 +1,5 @@
 // api/briefing/[action].js — Router único para todos los endpoints de briefing.
-// Vercel captura /api/briefing/{daily,project,history,budget,spending,annotations,highlights}
+// Vercel captura /api/briefing/{daily,project,history,budget,spending,annotations,highlights,estimate,pulse,ingest}
 // via el segmento dinámico [action] y delega al handler correspondiente en _handlers/.
 //
 // Motivo: el plan Hobby de Vercel limita a 12 serverless functions por deploy.
@@ -14,6 +14,8 @@ import spending from './_handlers/spending.js';
 import annotations from './_handlers/annotations.js';
 import highlights from './_handlers/highlights.js';
 import estimate from './_handlers/estimate.js';
+import pulse from './_handlers/pulse.js';
+import ingest from './_handlers/ingest.js';
 
 const HANDLERS = {
   daily,
@@ -24,6 +26,8 @@ const HANDLERS = {
   annotations,
   highlights,
   estimate,
+  pulse,
+  ingest,
 };
 
 export default async function handler(req, res) {

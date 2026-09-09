@@ -40,6 +40,11 @@ export class McClient {
     return projects || [];
   }
 
+  async proyecto(id) {
+    const { project } = await this._fetch(`/api/projects/${encodeURIComponent(id)}`);
+    return project;
+  }
+
   async crearProyecto(data) {
     const { project } = await this._fetch("/api/projects", {
       method: "POST",
@@ -48,10 +53,15 @@ export class McClient {
     return project;
   }
 
-  async crearCrumb({ projectId, title, source, body, timestamp }) {
+  async crumbsDeProyecto(projectId) {
+    const { crumbs } = await this._fetch(`/api/crumbs?projectId=${encodeURIComponent(projectId)}`);
+    return crumbs || [];
+  }
+
+  async crearCrumb({ projectId, title, source, body, timestamp, isTest, dueAt }) {
     const { crumb } = await this._fetch("/api/crumbs", {
       method: "POST",
-      body: JSON.stringify({ projectId, title, source, body, timestamp }),
+      body: JSON.stringify({ projectId, title, source, body, timestamp, isTest, dueAt }),
     });
     return crumb;
   }
@@ -77,6 +87,20 @@ export class McClient {
     return file;
   }
 
+  // --- Pulso git y briefings por suscripción ---
+
+  async enviarPulso(payload) {
+    return this._fetch("/api/briefing/pulse", { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  async pulso() {
+    return this._fetch("/api/briefing/pulse");
+  }
+
+  async ingestarBriefing(payload) {
+    return this._fetch("/api/briefing/ingest", { method: "POST", body: JSON.stringify(payload) });
+  }
+
   /**
    * Asegura que el proyecto existe (por slug del nombre).
    * Si no existe, lo crea con los metadatos que le pasemos.
@@ -94,3 +118,5 @@ export class McClient {
     return id;
   }
 }
+
+export { slugify };

@@ -35,6 +35,8 @@ export default async function handler(req, res) {
       body: c.body || '',
       timestamp: c.timestamp,
       isIdea: c.isIdea,
+      isTest: c.isTest,
+      dueAt: c.dueAt,
     });
     imported.push(crumb);
   }

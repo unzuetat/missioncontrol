@@ -1,7 +1,7 @@
 // src/BriefingsView.jsx — pestaña Briefings: gastos + últimos pulsos.
 
 import { useState, useEffect, useMemo } from 'react';
-import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, costLabel } from './briefing-utils.jsx';
 
 export default function BriefingsView({ apiBase = '', apiKey = '', t, projects = [] }) {
   const [items, setItems] = useState([]);
@@ -190,7 +190,7 @@ function BriefingCard({ b, expanded, onToggle, apiBase, apiKey }) {
         <div className="briefing-card-meta">
           <span>{b.kind === 'project' ? briefingTag(b) : `pulso · ${b.model}`}</span>
           <span>·</span>
-          <span>${b.usage?.costUsd ?? '?'}</span>
+          <span>{costLabel(b)}</span>
           {typeof b.projectCount === 'number' && (
             <><span>·</span><span>{b.projectCount} proyectos</span></>
           )}

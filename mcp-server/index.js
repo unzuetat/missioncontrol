@@ -283,6 +283,8 @@ const tools = [
               source: { type: 'string', default: 'claude-code' },
               timestamp: { type: 'string', description: 'ISO 8601. Si no se conoce, el backend pone ahora.' },
               isIdea: { type: 'boolean' },
+              isTest: { type: 'boolean', description: 'Es una prueba/experimento cuyo resultado hay que analizar más tarde.' },
+              dueAt: { type: 'string', description: 'Fecha de revisión (YYYY-MM-DD o ISO). Úsalo cuando el crumb sea algo que hay que revisar/analizar en X días: aparece en "Revisiones pendientes" del pulso git y del briefing.' },
             },
             required: ['title'],
           },

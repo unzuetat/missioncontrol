@@ -2,7 +2,7 @@
 // Uso: <ProjectBriefingSection projectId={project.id} apiBase={API_BASE} />
 
 import { useState, useEffect } from 'react';
-import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, tierFromModel } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, tierFromModel, costLabel } from './briefing-utils.jsx';
 
 const TIERS = [
   { id: 'flash',    model: 'claude-haiku-4-5',  modelShort: 'Haiku 4.5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
@@ -109,7 +109,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
   // Coste real preferido (último briefing con esa combo). Si no hay, estimación.
   function tierCostLabel(tier) {
     const recent = items.find(
-      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null
+      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null && !b.usage?.subscription
     );
     if (recent) return `$${recent.usage.costUsd.toFixed(2)}`;
     if (estimate?.costs?.[tier.model] != null) {
@@ -120,7 +120,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
 
   function tierCostTitle(tier) {
     const recent = items.find(
-      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null
+      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null && !b.usage?.subscription
     );
     if (recent) {
       return `Última generación (${flavor}, ${tier.modelShort}): $${recent.usage.costUsd.toFixed(2)} · ${recent.usage.inputTokens.toLocaleString()} in / ${recent.usage.outputTokens.toLocaleString()} out`;
@@ -180,7 +180,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
           </h3>
           {briefing && (
             <p className="project-briefing-meta">
-              {formatAbsolute(briefing.generatedAt)} · {formatRelative(briefing.generatedAt)} · {briefingTag(briefing)} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · ${briefing.usage.costUsd}
+              {formatAbsolute(briefing.generatedAt)} · {formatRelative(briefing.generatedAt)} · {briefingTag(briefing)} · {briefing.usage.inputTokens.toLocaleString()} in / {briefing.usage.outputTokens.toLocaleString()} out · {costLabel(briefing)}
             </p>
           )}
         </div>

@@ -30,6 +30,9 @@ export const keys = {
   crumb: (id) => `crumb:${id}`,
   file: (id) => `file:${id}`,
   recentCrumbs: 'crumbs:recent',
+  dueCrumbs: 'crumbs:due',                 // zset: score = dueAt ms, value = crumbId (solo pendientes)
+  pulseMachines: 'pulse:machines',         // set de MACHINE_IDs que han enviado pulso git
+  pulse: (machine) => `pulse:${machine}`,  // string JSON con el último pulso de esa máquina
 };
 
 const RECENT_CRUMBS_MAX = 50;
@@ -144,11 +147,15 @@ export async function createCrumb(crumbData) {
     isIdea: crumbData.isIdea ? 'true' : '',
     isTest: crumbData.isTest ? 'true' : '',
     isDone: '',
+    dueAt: normalizeDueAt(crumbData.dueAt),
   };
 
   await kv.hSet(keys.crumb(id), crumb);
   await kv.zAdd(keys.projectCrumbs(crumb.projectId), [{ score, value: id }]);
   await kv.zAdd(keys.recentCrumbs, [{ score, value: id }]);
+  if (crumb.dueAt) {
+    await kv.zAdd(keys.dueCrumbs, [{ score: Date.parse(crumb.dueAt), value: id }]);
+  }
 
   // Trim recent crumbs
   const count = await kv.zCard(keys.recentCrumbs);
@@ -161,8 +168,60 @@ export async function createCrumb(crumbData) {
 
 export async function updateCrumb(crumbId, fields) {
   const kv = await getClient();
-  await kv.hSet(keys.crumb(crumbId), fields);
-  return await kv.hGetAll(keys.crumb(crumbId));
+  const clean = { ...fields };
+  if (clean.dueAt !== undefined) clean.dueAt = normalizeDueAt(clean.dueAt);
+  if (Object.keys(clean).length > 0) await kv.hSet(keys.crumb(crumbId), clean);
+  const crumb = await kv.hGetAll(keys.crumb(crumbId));
+  // Mantener el índice de revisiones pendientes: solo crumbs con dueAt y no hechos.
+  if (crumb.dueAt && crumb.isDone !== 'true') {
+    await kv.zAdd(keys.dueCrumbs, [{ score: Date.parse(crumb.dueAt), value: crumbId }]);
+  } else {
+    await kv.zRem(keys.dueCrumbs, crumbId);
+  }
+  return crumb;
+}
+
+// Acepta 'YYYY-MM-DD' o ISO completo; devuelve ISO (o '' si vacío/inválido).
+function normalizeDueAt(value) {
+  if (!value) return '';
+  const str = String(value).trim();
+  const ms = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(str) ? `${str}T09:00:00.000Z` : str);
+  return Number.isNaN(ms) ? '' : new Date(ms).toISOString();
+}
+
+// Revisiones pendientes (crumbs con dueAt, no hechos), ordenadas por fecha.
+// Devuelve también nombre y color del proyecto para pintarlas sin más fetches.
+export async function getDueCrumbs() {
+  const kv = await getClient();
+  const ids = await kv.zRange(keys.dueCrumbs, 0, -1);
+  const out = [];
+  for (const id of ids) {
+    const c = await kv.hGetAll(keys.crumb(id));
+    if (!c || !c.title) { await kv.zRem(keys.dueCrumbs, id); continue; }
+    if (c.isDone === 'true' || !c.dueAt) { await kv.zRem(keys.dueCrumbs, id); continue; }
+    const [projectName, projectColor] = await kv.hmGet(keys.project(c.projectId), ['name', 'color']);
+    out.push({ id, ...c, projectName: projectName || c.projectId, projectColor: projectColor || '' });
+  }
+  return out;
+}
+
+// Pulso git enviado por el agente local de cada máquina.
+export async function savePulse(machine, payload) {
+  const kv = await getClient();
+  await kv.set(keys.pulse(machine), JSON.stringify(payload));
+  await kv.sAdd(keys.pulseMachines, machine);
+}
+
+export async function getAllPulses() {
+  const kv = await getClient();
+  const machines = await kv.sMembers(keys.pulseMachines);
+  const out = {};
+  for (const m of machines) {
+    const raw = await kv.get(keys.pulse(m));
+    if (!raw) continue;
+    try { out[m] = JSON.parse(raw); } catch { /* pulso corrupto: se ignora */ }
+  }
+  return out;
 }
 
 export async function deleteProjectFull(projectId) {

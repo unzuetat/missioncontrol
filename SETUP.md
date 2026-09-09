@@ -448,6 +448,62 @@ Comprueba que funciona: `https://TU-URL/api/ops/status` muestra el último
 keepalive y el último backup. Si `lastBackup` sigue en `null` pasadas 24 h,
 revisa los logs del cron en Vercel (pestaña **Logs**, filtra por `ops`).
 
+## Pulso git y briefings con tu suscripción de Claude
+
+Dos cosas corren **en tu ordenador**, no en Vercel, porque necesitan ver tus
+repos y porque la suscripción de Claude (Pro/Max) solo se puede usar desde
+Claude Code, no desde un servidor con API key:
+
+1. **Pulso git** (`npm run pulse`, sin IA): recorre tus proyectos y sube a
+   Mission Control la foto exacta de cada repo: commits sin push, cambios sin
+   commit, ramas que solo existen en local o sin fusionar, PRs abiertas, test
+   frente a prod. Se ve en la pestaña **⑂ Git** del dashboard, junto a las
+   **revisiones pendientes** (crumbs con fecha "revisar el"). Cada máquina
+   sube el suyo, etiquetado con su `MACHINE_ID`. Se lanza solo a diario con
+   launchd (ver abajo) y al final de cada `/export-mc`.
+2. **Briefing por suscripción** (`npm run briefing`): construye el mismo
+   prompt que usa el backend, lo ejecuta con `claude -p` (Claude Code en modo
+   headless, cuenta contra tu suscripción, coste 0 en API) y sube el
+   resultado. En el dashboard aparece como cualquier otro briefing, marcado
+   "suscripción".
+   ```bash
+   npm run briefing                                 # pulso diario del portfolio
+   npm run briefing -- --flavor executive           # briefing ejecutivo del portfolio
+   npm run briefing -- --project salariojusto       # briefing de un proyecto
+   npm run briefing -- --project X --model opus     # más profundo
+   ```
+   Los botones "Generar" del dashboard siguen usando la API de Anthropic
+   (con coste). Si no quieres pagar nunca, no pongas `ANTHROPIC_API_KEY` en
+   Vercel y genera siempre con `npm run briefing`.
+
+**Programar el pulso diario (macOS, launchd).** Crea
+`~/Library/LaunchAgents/com.TUNOMBRE.mc-pulse.plist` con este contenido,
+ajustando las rutas de `node` (`which node`) y del repo:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.TUNOMBRE.mc-pulse</string>
+  <key>ProgramArguments</key><array>
+    <string>/usr/local/bin/node</string>
+    <string>--env-file=/Users/TU/Projects/Missioncontrol/agent/.env.local</string>
+    <string>/Users/TU/Projects/Missioncontrol/agent/pulse.js</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/TU/Projects/Missioncontrol</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StandardOutPath</key><string>/Users/TU/Library/Logs/mc-pulse.log</string>
+  <key>StandardErrorPath</key><string>/Users/TU/Library/Logs/mc-pulse.log</string>
+</dict></plist>
+```
+
+Y cárgalo: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.TUNOMBRE.mc-pulse.plist`.
+Si el Mac está apagado a esa hora, no pasa nada: el siguiente `/export-mc`
+o `npm run pulse` lo pone al día.
+
 ## Seguridad — léelo aunque sea por encima
 
 - **Tu `MC_API_KEY`, tu `REDIS_URL`, `CRON_SECRET` y `BACKUP_GITHUB_TOKEN` son
