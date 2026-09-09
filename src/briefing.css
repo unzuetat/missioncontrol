@@ -1008,3 +1008,20 @@
   font-size: 11px;
   font-weight: 500;
 }
+
+
+/* --- Agente residente (trabajos en el Mac con la suscripción) --- */
+.project-briefing-tier.is-subscription {
+  border: 1px solid #14B8A6;
+  background: #14B8A614;
+  color: #0F766E;
+}
+.project-briefing-tier.is-subscription:hover:not(:disabled) { background: #14B8A628; }
+.project-briefing-tier.is-subscription:disabled { opacity: 0.45; cursor: not-allowed; }
+.project-briefing-tier.is-subscription .project-briefing-tier-model,
+.project-briefing-tier.is-subscription .project-briefing-tier-price { color: #0F766E; opacity: 0.85; }
+.mc-agent-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 6px 0 2px; min-height: 18px;
+}
+@keyframes mc-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }

@@ -101,6 +101,20 @@ export class McClient {
     return this._fetch("/api/briefing/ingest", { method: "POST", body: JSON.stringify(payload) });
   }
 
+  // --- Cola de trabajos del agente residente ---
+
+  async reclamarTrabajo({ machine, version, pid }) {
+    return this._fetch("/api/briefing/jobs?op=claim", { method: "POST", body: JSON.stringify({ machine, version, pid }) });
+  }
+
+  async terminarTrabajo({ id, status, result, error }) {
+    return this._fetch("/api/briefing/jobs?op=finish", { method: "POST", body: JSON.stringify({ id, status, result, error }) });
+  }
+
+  async listarTrabajos(limit = 20) {
+    return this._fetch(`/api/briefing/jobs?limit=${limit}`);
+  }
+
   /**
    * Asegura que el proyecto existe (por slug del nombre).
    * Si no existe, lo crea con los metadatos que le pasemos.

@@ -69,3 +69,6 @@ Para que corra automáticamente cada hora (ejemplo con `cron`):
   Reutiliza los prompts del backend (`api/_lib/briefing-prompts.js`, `api/briefing/_handlers/project.js`).
   `--dry` imprime el prompt; `--no-upload` genera sin subir.
 - Programación diaria del pulso en macOS: ver SETUP.md, sección "Pulso git y briefings con tu suscripción".
+- `agent/worker.js` (`npm run agent`): agente residente. Reclama trabajos de `POST /api/briefing/jobs?op=claim`
+  (tipos `pulse` y `briefing`), los ejecuta con `collectPulse` / `generateBriefing` y devuelve el resultado con
+  `?op=finish`. Cadencia 90 s (10 s tras actividad del dashboard). launchd `com.telmo.mc-agent` lo mantiene vivo.
