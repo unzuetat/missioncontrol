@@ -476,6 +476,24 @@ Claude Code, no desde un servidor con API key:
    (con coste). Si no quieres pagar nunca, no pongas `ANTHROPIC_API_KEY` en
    Vercel y genera siempre con `npm run briefing`.
 
+**Botones del dashboard: el agente residente.** Los botones "Suscripción" (pulso
+diario y Chief of Staff de cada proyecto) y "Actualizar pulso" (pestaña Git)
+no pueden ejecutar nada en Vercel: dejan un **trabajo en cola** y lo recoge un
+agente que corre en tu Mac:
+
+```bash
+npm run agent            # bucle: sondea la cola cada 90 s (10 s cuando el dashboard está activo)
+npm run agent -- --once  # una pasada, para probar
+```
+
+El dashboard muestra si el agente de cada máquina está **en línea** y el
+estado del trabajo (en cola → ejecutando → listo). Si el Mac está apagado, el
+botón se deshabilita y lo dice. Para que arranque solo y se mantenga vivo,
+crea `~/Library/LaunchAgents/com.TUNOMBRE.mc-agent.plist` como el del pulso
+(abajo) cambiando `pulse.js` por `worker.js`, quitando `StartCalendarInterval`
+y añadiendo `<key>RunAtLoad</key><true/>` y `<key>KeepAlive</key><true/>`.
+Log en `~/Library/Logs/mc-agent.log`.
+
 **Programar el pulso diario (macOS, launchd).** Crea
 `~/Library/LaunchAgents/com.TUNOMBRE.mc-pulse.plist` con este contenido,
 ajustando las rutas de `node` (`which node`) y del repo:

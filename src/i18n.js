@@ -83,6 +83,11 @@ const strings = {
     launcherTitle: 'Lanzador',
     // Pestaña Git (pulso git + revisiones con fecha)
     allGit: 'Git',
+    agentNone: 'Sin agente residente: ejecuta `npm run agent` en tu Mac para lanzar trabajos desde aquí.',
+    agentOnline: 'en línea',
+    agentOffline: 'desconectado',
+    agentOfflineHint: 'El agente de esa máquina no ha dado señales en los últimos minutos. Enciéndela o ejecuta `npm run agent`.',
+    refreshPulse: 'Actualizar pulso',
     project: 'proyecto',
     gitNoPulse: 'Ninguna máquina ha enviado todavía su pulso git. En tu Mac, dentro de la carpeta de Mission Control:',
     gitAllMachines: 'todas',
@@ -235,6 +240,11 @@ const strings = {
     launcherTitle: 'Launcher',
     // Git tab (git pulse + dated reviews)
     allGit: 'Git',
+    agentNone: 'No resident agent: run `npm run agent` on your Mac to launch jobs from here.',
+    agentOnline: 'online',
+    agentOffline: 'offline',
+    agentOfflineHint: 'That machine\'s agent has not checked in for a few minutes. Wake it up or run `npm run agent`.',
+    refreshPulse: 'Refresh pulse',
     project: 'project',
     gitNoPulse: 'No machine has sent its git pulse yet. On your Mac, inside the Mission Control folder:',
     gitAllMachines: 'all',

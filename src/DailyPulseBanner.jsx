@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, costLabel } from './briefing-utils.jsx';
+import { useAgents, useAgentJob, JobStatus, AgentChips, SUB_TIERS, agentLabels } from './agent-jobs.jsx';
 
 // Rango de precio por tier porque el flavor cambia el tamaño del contexto:
 // técnico = ligero (~5k tokens in), ejecutivo = amplio (~12k tokens in con
@@ -28,6 +29,10 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState(null);
   const [flavor, setFlavor] = useState('technical');
+  const { agents, anyOnline } = useAgents(apiBase);
+  const agentJob = useAgentJob(apiBase, {
+    onDone: () => { loadLatest(); setExpanded(true); },
+  });
 
   useEffect(() => { loadLatest(); }, []);
 
@@ -112,9 +117,23 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
           ))}
         </div>
         <div className="project-briefing-tiers">
+          {SUB_TIERS.map((tier) => (
+            <button
+              key={tier.id}
+              type="button"
+              className="project-briefing-tier is-subscription"
+              onClick={() => agentJob.run('briefing', { kind: 'daily', flavor, model: tier.model })}
+              disabled={!!generatingTier || agentJob.busy || !anyOnline}
+              title={anyOnline ? tier.hint : agentLabels.agentOfflineHint}
+            >
+              <span className="project-briefing-tier-label">{agentJob.busy ? 'En marcha…' : tier.label}</span>
+              <span className="project-briefing-tier-model">{tier.modelShort}</span>
+              <span className="project-briefing-tier-price">{tier.price}</span>
+            </button>
+          ))}
           {TIERS.map((tier) => {
             const isGenerating = generatingTier === tier.id;
-            const anyGenerating = !!generatingTier;
+            const anyGenerating = !!generatingTier || agentJob.busy;
             return (
               <button
                 key={tier.id}
@@ -122,7 +141,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
                 className={`project-briefing-tier ${tier.id === 'normal' ? 'is-primary' : 'is-secondary'}`}
                 onClick={() => generate(tier)}
                 disabled={anyGenerating}
-                title={tier.hint}
+                title={`${tier.hint} · API de Anthropic (con coste)`}
               >
                 <span className="project-briefing-tier-label">
                   {isGenerating ? 'Generando…' : tier.label}
@@ -135,7 +154,13 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
         </div>
       </div>
 
+      <div className="mc-agent-row">
+        <AgentChips agents={agents} />
+        <JobStatus job={agentJob.job} onCancel={agentJob.cancel} />
+      </div>
+
       {error && <div className="daily-pulse-error">Error: {error}</div>}
+      {agentJob.error && <div className="daily-pulse-error">Error del agente: {agentJob.error}</div>}
 
       {!pulse && !generatingTier && !error && (
         <p className="daily-pulse-empty">

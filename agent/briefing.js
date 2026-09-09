@@ -20,6 +20,7 @@
 
 import "dotenv/config";
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 import { McClient } from "./lib/mc-client.js";
 import {
@@ -40,23 +41,20 @@ function arg(name, def) {
   const i = process.argv.indexOf(name);
   return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : def;
 }
-const flags = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
-const FLAVOR = arg("--flavor", "technical") === "executive" ? "executive" : "technical";
-const PROJECT_ID = arg("--project", null);
-const MODEL = arg("--model", "sonnet");
-const DRY = flags.has("--dry");
-const NO_UPLOAD = flags.has("--no-upload");
 
-if (!MC_API_URL || !MC_API_KEY) {
-  console.error("Faltan MC_API_URL o MC_API_KEY en agent/.env.local.");
-  process.exit(1);
+let mc = null;
+function client() {
+  if (!mc) {
+    if (!MC_API_URL || !MC_API_KEY) throw new Error("Faltan MC_API_URL o MC_API_KEY en agent/.env.local.");
+    mc = new McClient({ baseUrl: MC_API_URL, apiKey: MC_API_KEY });
+  }
+  return mc;
 }
-
-const mc = new McClient({ baseUrl: MC_API_URL, apiKey: MC_API_KEY });
 
 // ---------------------------------------------------------------------------
 
-async function buildDaily() {
+async function buildDaily(FLAVOR) {
+  const mc = client();
   const ctx = CTX[FLAVOR];
   const [projects, pulseRes] = await Promise.all([mc.listarProyectos(), mc.pulso().catch(() => ({ machines: {}, due: [] }))]);
   const active = projects.filter((p) => !isArchived(p));
@@ -73,7 +71,8 @@ async function buildDaily() {
   };
 }
 
-async function buildProject(projectId) {
+async function buildProject(projectId, FLAVOR) {
+  const mc = client();
   const [project, crumbs, files] = await Promise.all([
     mc.proyecto(projectId),
     mc.crumbsDeProyecto(projectId),
@@ -91,7 +90,7 @@ async function buildProject(projectId) {
 }
 
 // Ejecuta `claude -p` con el prompt por stdin y devuelve { markdown, usage, model, durationMs }.
-function runClaude(system, user) {
+function runClaude(system, user, MODEL = "sonnet") {
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY; // forzar suscripción
@@ -132,38 +131,63 @@ function runClaude(system, user) {
   });
 }
 
-async function main() {
-  const spec = PROJECT_ID ? await buildProject(PROJECT_ID) : await buildDaily();
+/**
+ * Genera un briefing con la suscripción y (opcionalmente) lo sube a MC.
+ * @param {object} o { flavor, projectId?, model?, upload?, dry?, log? }
+ * @returns {{ kind, projectId?, flavor, model, markdown, usage, durationMs, saved? , system?, user? }}
+ */
+export async function generateBriefing({ flavor = "technical", projectId = null, model = "sonnet", upload = true, dry = false, log = null } = {}) {
+  const FLAVOR = flavor === "executive" ? "executive" : "technical";
+  const spec = projectId ? await buildProject(projectId, FLAVOR) : await buildDaily(FLAVOR);
   const label = spec.kind === "project" ? `proyecto ${spec.projectName} (${FLAVOR})` : `portfolio (${FLAVOR})`;
-  console.error(`Briefing ${label} · modelo ${MODEL} · prompt ${spec.user.length} chars · vía suscripción`);
+  if (log) log(`Briefing ${label} · modelo ${model} · prompt ${spec.user.length} chars · vía suscripción`);
+  if (dry) return { ...spec, flavor: FLAVOR, model, markdown: "", usage: null, durationMs: 0 };
 
-  if (DRY) {
-    console.log("=== SYSTEM ===\n" + spec.system + "\n\n=== USER ===\n" + spec.user);
-    return;
-  }
-
-  const gen = await runClaude(spec.system, spec.user);
+  const gen = await runClaude(spec.system, spec.user, model);
   if (!gen.markdown) throw new Error("Claude devolvió un briefing vacío");
-  console.log(gen.markdown);
-  console.error(`\n(${gen.model} · ${gen.usage.inputTokens} in / ${gen.usage.outputTokens} out · ${Math.round(gen.durationMs / 1000)} s)`);
+  if (log) log(`${gen.model} · ${gen.usage.inputTokens} in / ${gen.usage.outputTokens} out · ${Math.round(gen.durationMs / 1000)} s`);
 
-  if (NO_UPLOAD) { console.error("(--no-upload: no se sube a MC)"); return; }
-  const saved = await mc.ingestarBriefing({
-    kind: spec.kind,
-    projectId: spec.projectId,
-    flavor: FLAVOR,
-    markdown: gen.markdown,
-    model: gen.model,
-    generatedAt: new Date().toISOString(),
-    durationMs: gen.durationMs,
-    projectCount: spec.projectCount,
-    machine: MACHINE_ID,
-    usage: gen.usage,
-  });
-  console.error(`Subido a MC como briefing ${saved.kind} (${saved.generatedAt}).`);
+  let saved = null;
+  if (upload) {
+    saved = await client().ingestarBriefing({
+      kind: spec.kind,
+      projectId: spec.projectId,
+      flavor: FLAVOR,
+      markdown: gen.markdown,
+      model: gen.model,
+      generatedAt: new Date().toISOString(),
+      durationMs: gen.durationMs,
+      projectCount: spec.projectCount,
+      machine: MACHINE_ID,
+      usage: gen.usage,
+    });
+    if (log) log(`Subido a MC como briefing ${saved.kind} (${saved.generatedAt}).`);
+  }
+  return { kind: spec.kind, projectId: spec.projectId || null, flavor: FLAVOR, model: gen.model, markdown: gen.markdown, usage: gen.usage, durationMs: gen.durationMs, saved };
 }
 
-main().catch((err) => {
-  console.error("Error:", err.message || err);
-  process.exit(1);
-});
+async function main() {
+  const flags = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
+  const out = await generateBriefing({
+    flavor: arg("--flavor", "technical"),
+    projectId: arg("--project", null),
+    model: arg("--model", "sonnet"),
+    upload: !flags.has("--no-upload"),
+    dry: flags.has("--dry"),
+    log: (m) => console.error(m),
+  });
+  if (flags.has("--dry")) {
+    console.log("=== SYSTEM ===\n" + out.system + "\n\n=== USER ===\n" + out.user);
+    return;
+  }
+  console.log(out.markdown);
+  if (flags.has("--no-upload")) console.error("(--no-upload: no se sube a MC)");
+}
+
+const isEntrypoint = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isEntrypoint) {
+  main().catch((err) => {
+    console.error("Error:", err.message || err);
+    process.exit(1);
+  });
+}

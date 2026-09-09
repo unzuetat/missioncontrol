@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, tierFromModel, costLabel } from './briefing-utils.jsx';
+import { useAgents, useAgentJob, JobStatus, AgentChips, SUB_TIERS, agentLabels } from './agent-jobs.jsx';
 
 const TIERS = [
   { id: 'flash',    model: 'claude-haiku-4-5',  modelShort: 'Haiku 4.5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
@@ -28,6 +29,10 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
   const [error, setError] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedIdx, setExpandedIdx] = useState(() => new Set());
+  const { agents, anyOnline } = useAgents(apiBase);
+  const agentJob = useAgentJob(apiBase, {
+    onDone: () => { loadHistory(); setBriefingOpen(true); },
+  });
 
   const briefing = items[0] || null;
   const olderItems = items.slice(1);
@@ -202,9 +207,23 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
             ))}
           </div>
           <div className="project-briefing-tiers">
+            {SUB_TIERS.map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                className="project-briefing-tier is-subscription"
+                onClick={() => agentJob.run('briefing', { kind: 'project', projectId, flavor, model: tier.model })}
+                disabled={!!generatingTier || agentJob.busy || !anyOnline}
+                title={anyOnline ? tier.hint : agentLabels.agentOfflineHint}
+              >
+                <span className="project-briefing-tier-label">{agentJob.busy ? 'En marcha…' : tier.label}</span>
+                <span className="project-briefing-tier-model">{tier.modelShort}</span>
+                <span className="project-briefing-tier-price">{tier.price}</span>
+              </button>
+            ))}
             {TIERS.map((tier) => {
               const isGenerating = generatingTier === tier.id;
-              const anyGenerating = !!generatingTier;
+              const anyGenerating = !!generatingTier || agentJob.busy;
               return (
                 <button
                   key={tier.id}
@@ -212,7 +231,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                   className={`project-briefing-tier ${tier.id === 'normal' ? 'is-primary' : 'is-secondary'}`}
                   onClick={() => generate(tier)}
                   disabled={anyGenerating}
-                  title={tierCostTitle(tier)}
+                  title={`${tierCostTitle(tier)} · API de Anthropic (con coste)`}
                 >
                   <span className="project-briefing-tier-label">
                     {isGenerating ? 'Analizando…' : tier.label}
@@ -226,7 +245,13 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
         </div>
       </header>
 
+      <div className="mc-agent-row">
+        <AgentChips agents={agents} />
+        <JobStatus job={agentJob.job} onCancel={agentJob.cancel} />
+      </div>
+
       {error && <div className="project-briefing-error">Error: {error}</div>}
+      {agentJob.error && <div className="project-briefing-error">Error del agente: {agentJob.error}</div>}
       {loading && <p className="project-briefing-loading">Cargando…</p>}
 
       {!loading && !briefing && !generatingTier && (

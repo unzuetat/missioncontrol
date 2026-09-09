@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
+import { useAgents, useAgentJob, JobStatus, AgentChips } from './agent-jobs.jsx';
 
 const MONO = "'JetBrains Mono', monospace";
 const COLORS = {
@@ -286,6 +287,8 @@ export default function GitPulseView({ t, lang, onToggleDone }) {
   const [onlyIssues, setOnlyIssues] = useState(true);
   const [machineFilter, setMachineFilter] = useState('all');
   const [expanded, setExpanded] = useState(() => new Set());
+  const { agents, online } = useAgents('');
+  const pulseJob = useAgentJob('', { onDone: () => load() });
 
   const load = async () => {
     try {
@@ -332,6 +335,18 @@ export default function GitPulseView({ t, lang, onToggleDone }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {/* Agentes y acciones */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+        <AgentChips agents={agents} t={t} />
+        {online.map((m) => (
+          <ToggleButton key={m} active={false} color={COLORS.green} onClick={() => pulseJob.run('pulse', {}, m)}>
+            {pulseJob.busy ? '…' : `↻ ${t('refreshPulse')} (${m})`}
+          </ToggleButton>
+        ))}
+        <JobStatus job={pulseJob.job} onCancel={pulseJob.cancel} />
+        {pulseJob.error && <span style={{ fontSize: 11, fontFamily: MONO, color: COLORS.red }}>{pulseJob.error}</span>}
+      </div>
+
       {/* Máquinas */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         {machines.length === 0 ? (
