@@ -20,6 +20,7 @@ export const api = {
   createCrumb: (data) => request('/crumbs', { method: 'POST', body: JSON.stringify(data) }),
   updateCrumb: (data) => request('/crumbs', { method: 'PATCH', body: JSON.stringify(data) }),
   importCrumbs: (data) => request('/import', { method: 'POST', body: JSON.stringify(data) }),
+  getPulse: () => request('/briefing/pulse'),
   getFiles: (projectId) => request(`/files?projectId=${projectId}`),
   createFile: (data) => request('/files', { method: 'POST', body: JSON.stringify(data) }),
   updateFile: (data) => request('/files', { method: 'PUT', body: JSON.stringify(data) }),

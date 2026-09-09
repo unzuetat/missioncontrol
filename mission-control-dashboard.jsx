@@ -4,6 +4,7 @@ import { createT } from "./src/i18n.js";
 import DailyPulseBanner from "./src/DailyPulseBanner.jsx";
 import ProjectBriefingSection from "./src/ProjectBriefingSection.jsx";
 import BriefingsView from "./src/BriefingsView.jsx";
+import GitPulseView from "./src/GitPulseView.jsx";
 import HighlightsView from "./src/HighlightsView.jsx";
 import DivanView from "./src/DivanView.jsx";
 import "./src/divan.css";
@@ -552,6 +553,15 @@ function Timeline({ crumbs, projectColor, lang, onToggleDone, onEditCrumb, t }) 
                       {crumb.title}
                     </span>
                     <SourceBadge source={crumb.source} compact />
+                    {crumb.dueAt && !isDone && (() => {
+                      const d = Math.round((Date.parse(crumb.dueAt) - Date.now()) / 86400000);
+                      const col = d < 0 ? "#EF4444" : d <= 3 ? "#F59E0B" : "var(--text-muted)";
+                      return (
+                        <span title={`${t("dueAtLabel")} ${String(crumb.dueAt).slice(0, 10)}`} style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: col, border: `1px solid ${col}55`, borderRadius: 999, padding: "1px 6px", whiteSpace: "nowrap" }}>
+                          ⏰ {d < 0 ? `${t("overdue")} ${-d}d` : d === 0 ? t("gitToday") : `${t("gitIn")} ${d}d`}
+                        </span>
+                      );
+                    })()}
                     {isSpecial && onToggleDone && (
                       <button
                         onClick={() => onToggleDone(crumb.id, !isDone)}
@@ -618,6 +628,7 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   const [body, setBody] = useState("");
   const [isIdea, setIsIdea] = useState(false);
   const [isTest, setIsTest] = useState(false);
+  const [dueAt, setDueAt] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -628,11 +639,12 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
   const handleSubmit = async () => {
     if (!title.trim() || saving) return;
     setSaving(true);
-    await onSubmit({ projectId, title, body, source: "claude-web", timestamp: new Date().toISOString(), isIdea, isTest });
+    await onSubmit({ projectId, title, body, source: "claude-web", timestamp: new Date().toISOString(), isIdea, isTest, dueAt: dueAt || undefined });
     setTitle("");
     setBody("");
     setIsIdea(false);
     setIsTest(false);
+    setDueAt("");
     setSaving(false);
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 2000);
@@ -693,6 +705,18 @@ function CrumbForm({ projects, onSubmit, t, defaultProjectId }) {
         onFocus={(e) => (e.target.style.borderColor = "var(--border-hover)")}
         onBlur={(e) => (e.target.style.borderColor = "var(--border-primary)")}
       />
+      <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: dueAt ? "#EF4444" : "var(--text-tertiary)", whiteSpace: "nowrap" }}>
+        ⏰ {t("dueAtLabel")}
+        <input
+          type="date"
+          value={dueAt}
+          onChange={(e) => setDueAt(e.target.value)}
+          style={{ ...inputStyle, width: "auto", padding: "6px 10px", color: dueAt ? "var(--text-primary)" : "var(--text-muted)" }}
+        />
+        {dueAt && (
+          <button onClick={() => setDueAt("")} style={{ all: "unset", cursor: "pointer", color: "var(--text-muted)" }} title="×">×</button>
+        )}
+      </label>
       <div style={{ display: "flex", gap: 16 }}>
         <label
           style={{
@@ -1897,7 +1921,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 color: "var(--text-primary)", transition: "font-size 0.3s",
               }}
             >
-              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : view === "highlights" ? `📌 ${t("allHighlights")}` : view === "divan" ? t("allDivan") : view === "lanzador" ? `🚀 ${t("launcherTitle")}` : "Mission Control"}
+              {view === "detail" ? selectedProject?.name : view === "ideas" ? `💡 ${t("allIdeas")}` : view === "testing" ? `🧪 ${t("allTests")}` : view === "briefings" ? `📋 ${t("allBriefings")}` : view === "highlights" ? `📌 ${t("allHighlights")}` : view === "divan" ? t("allDivan") : view === "lanzador" ? `🚀 ${t("launcherTitle")}` : view === "git" ? `⑂ ${t("allGit")}` : "Mission Control"}
             </h1>
             {view === "detail" && selectedProject && (
               <>
@@ -1906,7 +1930,7 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                 <ProjectLinks project={selectedProject} />
               </>
             )}
-            {(view === "ideas" || view === "testing" || view === "briefings" || view === "highlights" || view === "divan" || view === "lanzador") && (
+            {(view === "ideas" || view === "testing" || view === "briefings" || view === "highlights" || view === "divan" || view === "lanzador" || view === "git") && (
               <button
                 onClick={() => setView("grid")}
                 style={{
@@ -2070,6 +2094,20 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
                     📋 {t("allBriefings")}
                   </button>
                   <button
+                    onClick={() => setView("git")}
+                    style={{
+                      all: "unset", cursor: "pointer", fontSize: 11,
+                      padding: "5px 12px", borderRadius: 6,
+                      background: "#EF444418", border: "1px solid #EF444435",
+                      color: "#EF4444", fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 600, letterSpacing: "0.05em", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = "#EF444428"; }}
+                    onMouseLeave={(e) => { e.target.style.background = "#EF444418"; }}
+                  >
+                    ⑂ {t("allGit")}
+                  </button>
+                  <button
                     onClick={() => setView("highlights")}
                     style={{
                       all: "unset", cursor: "pointer", fontSize: 11,
@@ -2211,6 +2249,11 @@ Si un proyecto no tiene URLs listadas, rellena las que conozcas de esta sesión.
             t={t}
             lang={lang}
           />
+        )}
+
+        {/* GIT VIEW */}
+        {!loading && view === "git" && (
+          <GitPulseView t={t} lang={lang} onToggleDone={handleToggleDone} />
         )}
 
         {/* BRIEFINGS VIEW */}

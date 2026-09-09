@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { projectId, title, source, body, timestamp, isIdea } = req.body || {};
+    const { projectId, title, source, body, timestamp, isIdea, isTest, dueAt } = req.body || {};
     if (!projectId || !title) {
       return res.status(400).json({ error: 'projectId and title are required' });
     }
@@ -29,12 +29,12 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const crumb = await createCrumb({ projectId, title, source, body, timestamp, isIdea });
+    const crumb = await createCrumb({ projectId, title, source, body, timestamp, isIdea, isTest, dueAt });
     return res.status(201).json({ crumb });
   }
 
   if (req.method === 'PATCH') {
-    const { crumbId, isDone, title, body } = req.body || {};
+    const { crumbId, isDone, title, body, dueAt, isTest, isIdea } = req.body || {};
     if (!crumbId) {
       return res.status(400).json({ error: 'crumbId is required' });
     }
@@ -42,6 +42,9 @@ export default async function handler(req, res) {
     if (isDone !== undefined) fields.isDone = isDone ? 'true' : '';
     if (title !== undefined) fields.title = title;
     if (body !== undefined) fields.body = body;
+    if (dueAt !== undefined) fields.dueAt = dueAt || '';
+    if (isTest !== undefined) fields.isTest = isTest ? 'true' : '';
+    if (isIdea !== undefined) fields.isIdea = isIdea ? 'true' : '';
     const crumb = await updateCrumb(crumbId, fields);
     return res.status(200).json({ crumb });
   }

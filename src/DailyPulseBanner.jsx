@@ -5,7 +5,7 @@
 // apiKey se usa solo para POST (generar). GET es público.
 
 import { useState, useEffect } from 'react';
-import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag } from './briefing-utils.jsx';
+import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, costLabel } from './briefing-utils.jsx';
 
 // Rango de precio por tier porque el flavor cambia el tamaño del contexto:
 // técnico = ligero (~5k tokens in), ejecutivo = amplio (~12k tokens in con
@@ -78,7 +78,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
           <span className="daily-pulse-label">Pulso diario</span>
           {pulse && (
             <span className="daily-pulse-meta">
-              · {formatAbsolute(pulse.generatedAt)} · {formatRelative(pulse.generatedAt)} · {briefingTag(pulse)} · ${pulse.usage.costUsd}
+              · {formatAbsolute(pulse.generatedAt)} · {formatRelative(pulse.generatedAt)} · {briefingTag(pulse)} · {costLabel(pulse)}
             </span>
           )}
         </div>

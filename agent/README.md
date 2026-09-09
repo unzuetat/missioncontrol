@@ -56,3 +56,16 @@ Para que corra automáticamente cada hora (ejemplo con `cron`):
   tiene secretos sin ignorar, no los subas.
 - El agente no sube `node_modules`, `venv`, `.git`, `dist`, etc.
 - `agent/.env.local` está en `.gitignore` (nunca se pushea).
+
+
+## Pulso git (`npm run pulse`) y briefing por suscripción (`npm run briefing`)
+
+- `agent/pulse.js`: foto git exacta de todos los repos de `PROJECTS_DIR` (ahead/behind, sin push,
+  sin commit, ramas solo en local / sin fusionar / solo en remoto, PRs vía `gh`, test vs prod con
+  las ramas que Mission Control tiene de cada proyecto). Sube a `POST /api/briefing/pulse` con
+  `MACHINE_ID`. Sin IA. `--dry` no sube, `--json` imprime el payload.
+- `agent/briefing.js`: genera el briefing (portfolio o `--project <id>`, `--flavor technical|executive`)
+  con `claude -p` usando la suscripción de Claude Code y lo sube a `POST /api/briefing/ingest`.
+  Reutiliza los prompts del backend (`api/_lib/briefing-prompts.js`, `api/briefing/_handlers/project.js`).
+  `--dry` imprime el prompt; `--no-upload` genera sin subir.
+- Programación diaria del pulso en macOS: ver SETUP.md, sección "Pulso git y briefings con tu suscripción".

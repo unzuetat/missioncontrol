@@ -370,6 +370,14 @@ export function tierFromModel(model) {
   return model || '?';
 }
 
+// Coste a mostrar: "$0.05" para generaciones por API, "suscripción" para las
+// generadas en local con Claude Code (agent/briefing.js → /api/briefing/ingest).
+export function costLabel(briefing) {
+  if (briefing?.usage?.subscription) return 'suscripción';
+  const c = briefing?.usage?.costUsd;
+  return c == null ? '$?' : `$${c}`;
+}
+
 // Etiqueta compacta para mostrar junto a una briefing: "ejecutivo · normal"
 export function briefingTag(briefing) {
   const flavor = briefing?.flavor === 'executive' ? 'ejecutivo' : 'técnico';
