@@ -1,21 +1,13 @@
 // src/DailyPulseBanner.jsx — banner compacto arriba del dashboard.
-// Muestra el último pulso diario y permite regenerar con flavor (técnico/ejecutivo)
-// y tier (flash/normal/profundo), mismo criterio que ProjectBriefingSection.
+// Muestra el último pulso diario y permite regenerarlo con flavor (técnico/ejecutivo)
+// vía el agente residente del Mac (suscripción de Claude Code, coste 0). Los tiers
+// por API de Anthropic se retiraron el 2026-09-09 a petición de Telmo.
 // Uso: <DailyPulseBanner apiBase={API_BASE} apiKey={API_KEY} />
-// apiKey se usa solo para POST (generar). GET es público.
+// apiKey se usa solo para anotaciones (PUT). GET es público.
 
 import { useState, useEffect } from 'react';
 import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, costLabel } from './briefing-utils.jsx';
 import { useAgents, useAgentJob, JobStatus, AgentChips, SUB_TIERS, agentLabels } from './agent-jobs.jsx';
-
-// Rango de precio por tier porque el flavor cambia el tamaño del contexto:
-// técnico = ligero (~5k tokens in), ejecutivo = amplio (~12k tokens in con
-// 30 proyectos). Los extremos del rango corresponden a ambos escenarios.
-const TIERS = [
-  { id: 'flash',    model: 'claude-haiku-4-5',  modelShort: 'Haiku 4.5',  label: 'Flash',    price: '~$0.01–0.03', hint: 'Recap rápido' },
-  { id: 'normal',   model: 'claude-sonnet-4-6', modelShort: 'Sonnet 4.6', label: 'Normal',   price: '~$0.03–0.08', hint: 'Default' },
-  { id: 'profundo', model: 'claude-opus-4-7',   modelShort: 'Opus 4.7',   label: 'Profundo', price: '~$0.05–0.12', hint: 'Análisis denso' },
-];
 
 const FLAVORS = [
   { id: 'technical', label: 'Técnico',   hint: 'Pulso matinal ligero: dónde estás hoy, atento a, una hora libre.' },
@@ -25,7 +17,6 @@ const FLAVORS = [
 export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
   const [pulse, setPulse] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [generatingTier, setGeneratingTier] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState(null);
   const [flavor, setFlavor] = useState('technical');
@@ -47,30 +38,6 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
       setError(e.message);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function generate(tier) {
-    setGeneratingTier(tier.id);
-    setError(null);
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (apiKey) headers['x-api-key'] = apiKey;
-      const res = await fetch(`${apiBase}/api/briefing/daily`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ model: tier.model, flavor }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || body.error || `HTTP ${res.status}`);
-      }
-      setPulse(await res.json());
-      setExpanded(true);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setGeneratingTier(null);
     }
   }
 
@@ -109,7 +76,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
               aria-selected={flavor === f.id}
               className={`project-briefing-flavor ${flavor === f.id ? 'is-active' : ''}`}
               onClick={() => setFlavor(f.id)}
-              disabled={!!generatingTier}
+              disabled={agentJob.busy}
               title={f.hint}
             >
               {f.label}
@@ -123,7 +90,7 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
               type="button"
               className="project-briefing-tier is-subscription"
               onClick={() => agentJob.run('briefing', { kind: 'daily', flavor, model: tier.model })}
-              disabled={!!generatingTier || agentJob.busy || !anyOnline}
+              disabled={agentJob.busy || !anyOnline}
               title={anyOnline ? tier.hint : agentLabels.agentOfflineHint}
             >
               <span className="project-briefing-tier-label">{agentJob.busy ? 'En marcha…' : tier.label}</span>
@@ -131,26 +98,6 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
               <span className="project-briefing-tier-price">{tier.price}</span>
             </button>
           ))}
-          {TIERS.map((tier) => {
-            const isGenerating = generatingTier === tier.id;
-            const anyGenerating = !!generatingTier || agentJob.busy;
-            return (
-              <button
-                key={tier.id}
-                type="button"
-                className={`project-briefing-tier ${tier.id === 'normal' ? 'is-primary' : 'is-secondary'}`}
-                onClick={() => generate(tier)}
-                disabled={anyGenerating}
-                title={`${tier.hint} · API de Anthropic (con coste)`}
-              >
-                <span className="project-briefing-tier-label">
-                  {isGenerating ? 'Generando…' : tier.label}
-                </span>
-                <span className="project-briefing-tier-model">{tier.modelShort}</span>
-                <span className="project-briefing-tier-price">{tier.price}</span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -162,9 +109,9 @@ export default function DailyPulseBanner({ apiBase = '', apiKey = '' }) {
       {error && <div className="daily-pulse-error">Error: {error}</div>}
       {agentJob.error && <div className="daily-pulse-error">Error del agente: {agentJob.error}</div>}
 
-      {!pulse && !generatingTier && !error && (
+      {!pulse && !agentJob.busy && !error && (
         <p className="daily-pulse-empty">
-          Elige <strong>tono</strong> y <strong>tier</strong> y pulsa para generar el pulso del portfolio.
+          Elige <strong>tono</strong> y pulsa <strong>Suscripción</strong>: el pulso se genera en tu Mac con tu suscripción de Claude, sin coste de API.
         </p>
       )}
 

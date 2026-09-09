@@ -5,12 +5,6 @@ import { useState, useEffect } from 'react';
 import { AnnotatedMarkdown, formatRelative, formatAbsolute, briefingTag, tierFromModel, costLabel } from './briefing-utils.jsx';
 import { useAgents, useAgentJob, JobStatus, AgentChips, SUB_TIERS, agentLabels } from './agent-jobs.jsx';
 
-const TIERS = [
-  { id: 'flash',    model: 'claude-haiku-4-5',  modelShort: 'Haiku 4.5',  label: 'Flash',    price: '~$0.01', hint: 'Recap rápido' },
-  { id: 'normal',   model: 'claude-sonnet-4-6', modelShort: 'Sonnet 4.6', label: 'Normal',   price: '~$0.03', hint: 'Briefing normal' },
-  { id: 'profundo', model: 'claude-opus-4-7',   modelShort: 'Opus 4.7',   label: 'Profundo', price: '~$0.07', hint: 'Análisis denso' },
-];
-
 const FLAVORS = [
   { id: 'technical', label: 'Técnico',   hint: 'Dónde lo dejaste, qué hacer siguiente, riesgos. Orientado a código.' },
   { id: 'executive', label: 'Ejecutivo', hint: 'Estado, dirección, recomendaciones con coste/beneficio/esfuerzo, roadmap.' },
@@ -23,9 +17,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
   const [highlightsOpen, setHighlightsOpen] = useState(false);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [generatingTier, setGeneratingTier] = useState(null);
   const [flavor, setFlavor] = useState('technical');
-  const [estimate, setEstimate] = useState(null);
   const [error, setError] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedIdx, setExpandedIdx] = useState(() => new Set());
@@ -43,11 +35,6 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     loadSpending();
     loadHighlights();
   }, [projectId]);
-
-  useEffect(() => {
-    if (!projectId) return;
-    loadEstimate(flavor);
-  }, [projectId, flavor]);
 
   async function loadHistory() {
     setLoading(true);
@@ -95,72 +82,6 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
     }
   }
 
-  async function loadEstimate(currentFlavor) {
-    try {
-      const res = await fetch(
-        `${apiBase}/api/briefing/estimate?projectId=${encodeURIComponent(projectId)}&flavor=${encodeURIComponent(currentFlavor)}`
-      );
-      if (!res.ok) {
-        setEstimate(null);
-        return;
-      }
-      const data = await res.json();
-      setEstimate(data);
-    } catch {
-      setEstimate(null);
-    }
-  }
-
-  // Coste real preferido (último briefing con esa combo). Si no hay, estimación.
-  function tierCostLabel(tier) {
-    const recent = items.find(
-      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null && !b.usage?.subscription
-    );
-    if (recent) return `$${recent.usage.costUsd.toFixed(2)}`;
-    if (estimate?.costs?.[tier.model] != null) {
-      return `~$${estimate.costs[tier.model].toFixed(2)}`;
-    }
-    return tier.price;
-  }
-
-  function tierCostTitle(tier) {
-    const recent = items.find(
-      (b) => b.model === tier.model && b.flavor === flavor && b.usage?.costUsd != null && !b.usage?.subscription
-    );
-    if (recent) {
-      return `Última generación (${flavor}, ${tier.modelShort}): $${recent.usage.costUsd.toFixed(2)} · ${recent.usage.inputTokens.toLocaleString()} in / ${recent.usage.outputTokens.toLocaleString()} out`;
-    }
-    if (estimate?.costs?.[tier.model] != null) {
-      return `Estimación (${flavor}, ${tier.modelShort}): ~$${estimate.costs[tier.model].toFixed(2)} · ${estimate.inputTokens.toLocaleString()} in + ~${estimate.estimatedOutputTokens.toLocaleString()} out`;
-    }
-    return tier.hint;
-  }
-
-  async function generate(tier) {
-    setGeneratingTier(tier.id);
-    setError(null);
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (apiKey) headers['x-api-key'] = apiKey;
-      const res = await fetch(`${apiBase}/api/briefing/project`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ projectId, model: tier.model, flavor }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || body.error || `HTTP ${res.status}`);
-      }
-      const fresh = await res.json();
-      setItems((prev) => [fresh, ...prev].slice(0, 10));
-      setBriefingOpen(true); // auto-expandir el recién generado
-      loadSpending(); // refresca badge
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setGeneratingTier(null);
-    }
-  }
 
   function toggleOlder(idx) {
     setExpandedIdx((prev) => {
@@ -199,7 +120,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                 aria-selected={flavor === f.id}
                 className={`project-briefing-flavor ${flavor === f.id ? 'is-active' : ''}`}
                 onClick={() => setFlavor(f.id)}
-                disabled={!!generatingTier}
+                disabled={agentJob.busy}
                 title={f.hint}
               >
                 {f.label}
@@ -213,7 +134,7 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                 type="button"
                 className="project-briefing-tier is-subscription"
                 onClick={() => agentJob.run('briefing', { kind: 'project', projectId, flavor, model: tier.model })}
-                disabled={!!generatingTier || agentJob.busy || !anyOnline}
+                disabled={agentJob.busy || !anyOnline}
                 title={anyOnline ? tier.hint : agentLabels.agentOfflineHint}
               >
                 <span className="project-briefing-tier-label">{agentJob.busy ? 'En marcha…' : tier.label}</span>
@@ -221,26 +142,6 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
                 <span className="project-briefing-tier-price">{tier.price}</span>
               </button>
             ))}
-            {TIERS.map((tier) => {
-              const isGenerating = generatingTier === tier.id;
-              const anyGenerating = !!generatingTier || agentJob.busy;
-              return (
-                <button
-                  key={tier.id}
-                  type="button"
-                  className={`project-briefing-tier ${tier.id === 'normal' ? 'is-primary' : 'is-secondary'}`}
-                  onClick={() => generate(tier)}
-                  disabled={anyGenerating}
-                  title={`${tierCostTitle(tier)} · API de Anthropic (con coste)`}
-                >
-                  <span className="project-briefing-tier-label">
-                    {isGenerating ? 'Analizando…' : tier.label}
-                  </span>
-                  <span className="project-briefing-tier-model">{tier.modelShort}</span>
-                  <span className="project-briefing-tier-price">{tierCostLabel(tier)}</span>
-                </button>
-              );
-            })}
           </div>
         </div>
       </header>
@@ -254,15 +155,15 @@ export default function ProjectBriefingSection({ projectId, apiBase = '', apiKey
       {agentJob.error && <div className="project-briefing-error">Error del agente: {agentJob.error}</div>}
       {loading && <p className="project-briefing-loading">Cargando…</p>}
 
-      {!loading && !briefing && !generatingTier && (
+      {!loading && !briefing && !agentJob.busy && (
         <div className="project-briefing-empty">
           <p>
-            Elige <strong>flavor</strong> y <strong>tier</strong> y genera briefing.
+            Elige <strong>flavor</strong> y pulsa <strong>Suscripción</strong>: se genera en tu Mac con tu suscripción de Claude, sin coste de API.
           </p>
           <p className="project-briefing-hint">
             <strong>Técnico</strong> — dónde lo dejaste, qué hacer siguiente, riesgos (código).
             {' '}<strong>Ejecutivo</strong> — dirección, recomendaciones con coste/beneficio/esfuerzo, roadmap.
-            {' '}Tiers: Flash (recap), Normal (default), Profundo (denso).
+            {' '}<strong>Profundo</strong> usa Opus: más denso, tarda más.
           </p>
         </div>
       )}
