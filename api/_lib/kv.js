@@ -42,24 +42,18 @@ export async function getAllProjects() {
   const ids = await kv.sMembers(keys.projectSet);
   if (!ids || ids.length === 0) return [];
 
-  const projects = [];
-  for (const id of ids) {
-    const data = await kv.hGetAll(keys.project(id));
-    if (data && Object.keys(data).length > 0) {
-      projects.push({ id, ...data });
-    }
-  }
+  // Todas las lecturas en paralelo: node-redis las encadena por la misma
+  // conexión (pipelining), así que N proyectos cuestan ~1 ida y vuelta en
+  // vez de N. Con Redis en otra región (≈100 ms por comando) es la diferencia
+  // entre 4 s y 0,3 s.
+  const rows = await Promise.all(ids.map((id) => kv.hGetAll(keys.project(id))));
+  const projects = ids.map((id, i) => (rows[i] && Object.keys(rows[i]).length > 0 ? { id, ...rows[i] } : null)).filter(Boolean);
 
-  // Fetch lastCrumb for each project
-  for (const p of projects) {
-    const topCrumbs = await kv.zRange(keys.projectCrumbs(p.id), 0, 0, { REV: true });
-    if (topCrumbs && topCrumbs.length > 0) {
-      const crumbData = await kv.hGetAll(keys.crumb(topCrumbs[0]));
-      if (crumbData && Object.keys(crumbData).length > 0) {
-        p.lastCrumb = crumbData;
-      }
-    }
-  }
+  const tops = await Promise.all(projects.map((p) => kv.zRange(keys.projectCrumbs(p.id), 0, 0, { REV: true })));
+  const crumbRows = await Promise.all(tops.map((t) => (t && t.length > 0 ? kv.hGetAll(keys.crumb(t[0])) : Promise.resolve(null))));
+  projects.forEach((p, i) => {
+    if (crumbRows[i] && Object.keys(crumbRows[i]).length > 0) p.lastCrumb = crumbRows[i];
+  });
 
   return projects;
 }
@@ -71,14 +65,15 @@ export async function getAllProjectsBare() {
   const ids = await kv.sMembers(keys.projectSet);
   if (!ids || ids.length === 0) return [];
 
-  const projects = [];
-  for (const id of ids) {
-    const data = await kv.hmGet(keys.project(id), ['name', 'repoUrl', 'status']);
-    if (data && data[0]) {
-      projects.push({ id, name: data[0], repoUrl: data[1] || '', status: data[2] || '' });
-    }
-  }
-  return projects;
+  const rows = await Promise.all(ids.map((id) => kv.hmGet(keys.project(id), ['name', 'repoUrl', 'status'])));
+  return ids
+    .map((id, i) => (rows[i] && rows[i][0] ? { id, name: rows[i][0], repoUrl: rows[i][1] || '', status: rows[i][2] || '' } : null))
+    .filter(Boolean);
+}
+
+async function hydrateCrumbs(kv, ids) {
+  const rows = await Promise.all(ids.map((id) => kv.hGetAll(keys.crumb(id))));
+  return ids.map((id, i) => (rows[i] && Object.keys(rows[i]).length > 0 ? { id, ...rows[i] } : null)).filter(Boolean);
 }
 
 export async function getProjectCrumbs(projectId, limit) {
@@ -86,15 +81,7 @@ export async function getProjectCrumbs(projectId, limit) {
   const stop = typeof limit === 'number' && limit > 0 ? limit - 1 : -1;
   const crumbIds = await kv.zRange(keys.projectCrumbs(projectId), 0, stop, { REV: true });
   if (!crumbIds || crumbIds.length === 0) return [];
-
-  const crumbs = [];
-  for (const id of crumbIds) {
-    const data = await kv.hGetAll(keys.crumb(id));
-    if (data && Object.keys(data).length > 0) {
-      crumbs.push({ id, ...data });
-    }
-  }
-  return crumbs;
+  return hydrateCrumbs(kv, crumbIds);
 }
 
 export async function getProjectById(projectId) {
@@ -121,15 +108,7 @@ export async function getRecentCrumbs(limit = 20) {
   const kv = await getClient();
   const crumbIds = await kv.zRange(keys.recentCrumbs, 0, limit - 1, { REV: true });
   if (!crumbIds || crumbIds.length === 0) return [];
-
-  const crumbs = [];
-  for (const id of crumbIds) {
-    const data = await kv.hGetAll(keys.crumb(id));
-    if (data && Object.keys(data).length > 0) {
-      crumbs.push({ id, ...data });
-    }
-  }
-  return crumbs;
+  return hydrateCrumbs(kv, crumbIds);
 }
 
 export async function createCrumb(crumbData) {
@@ -194,15 +173,17 @@ function normalizeDueAt(value) {
 export async function getDueCrumbs() {
   const kv = await getClient();
   const ids = await kv.zRange(keys.dueCrumbs, 0, -1);
-  const out = [];
-  for (const id of ids) {
-    const c = await kv.hGetAll(keys.crumb(id));
-    if (!c || !c.title) { await kv.zRem(keys.dueCrumbs, id); continue; }
-    if (c.isDone === 'true' || !c.dueAt) { await kv.zRem(keys.dueCrumbs, id); continue; }
-    const [projectName, projectColor] = await kv.hmGet(keys.project(c.projectId), ['name', 'color']);
-    out.push({ id, ...c, projectName: projectName || c.projectId, projectColor: projectColor || '' });
-  }
-  return out;
+  const rows = await Promise.all(ids.map((id) => kv.hGetAll(keys.crumb(id))));
+  const keep = [];
+  const stale = [];
+  ids.forEach((id, i) => {
+    const c = rows[i];
+    if (!c || !c.title || c.isDone === 'true' || !c.dueAt) stale.push(id);
+    else keep.push({ id, ...c });
+  });
+  if (stale.length) await Promise.all(stale.map((id) => kv.zRem(keys.dueCrumbs, id)));
+  const metas = await Promise.all(keep.map((c) => kv.hmGet(keys.project(c.projectId), ['name', 'color'])));
+  return keep.map((c, i) => ({ ...c, projectName: metas[i]?.[0] || c.projectId, projectColor: metas[i]?.[1] || '' }));
 }
 
 // Pulso git enviado por el agente local de cada máquina.
@@ -215,12 +196,12 @@ export async function savePulse(machine, payload) {
 export async function getAllPulses() {
   const kv = await getClient();
   const machines = await kv.sMembers(keys.pulseMachines);
+  const raws = await Promise.all(machines.map((m) => kv.get(keys.pulse(m))));
   const out = {};
-  for (const m of machines) {
-    const raw = await kv.get(keys.pulse(m));
-    if (!raw) continue;
-    try { out[m] = JSON.parse(raw); } catch { /* pulso corrupto: se ignora */ }
-  }
+  machines.forEach((m, i) => {
+    if (!raws[i]) return;
+    try { out[m] = JSON.parse(raws[i]); } catch { /* pulso corrupto: se ignora */ }
+  });
   return out;
 }
 
@@ -242,13 +223,8 @@ export async function getProjectFiles(projectId) {
   const fileIds = await kv.sMembers(keys.projectFiles(projectId));
   if (!fileIds || fileIds.length === 0) return [];
 
-  const files = [];
-  for (const id of fileIds) {
-    const data = await kv.hGetAll(keys.file(id));
-    if (data && Object.keys(data).length > 0) {
-      files.push({ id, ...data });
-    }
-  }
+  const rows = await Promise.all(fileIds.map((id) => kv.hGetAll(keys.file(id))));
+  const files = fileIds.map((id, i) => (rows[i] && Object.keys(rows[i]).length > 0 ? { id, ...rows[i] } : null)).filter(Boolean);
   return files.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 }
 

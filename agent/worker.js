@@ -49,7 +49,7 @@ const log = (...a) => console.log(`[${ts()}]`, ...a);
 async function runJob(job) {
   if (job.type === "pulse") {
     const projects = await mc.listarProyectos();
-    const payload = collectPulse({ projects, machine: MACHINE_ID });
+    const payload = await collectPulse({ projects, machine: MACHINE_ID });
     const res = await mc.enviarPulso(payload);
     const alerts = payload.projects.filter((p) => p.ahead > 0 || p.uncommitted > 0 || (p.branchesWithoutRemote || []).length || (p.divergingBranches || []).length || (p.prs || []).length).length;
     return { projects: res.projects, alerts, generatedAt: res.generatedAt, durationMs: payload.durationMs };

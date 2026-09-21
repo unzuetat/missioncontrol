@@ -3,12 +3,7 @@
  * Usa la MC_API_KEY para autenticarse contra el backend en Vercel.
  */
 
-function slugify(nombre) {
-  return nombre
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
+import { slugify } from "./project-match.js";
 
 export class McClient {
   constructor({ baseUrl, apiKey }) {
@@ -40,6 +35,12 @@ export class McClient {
     return projects || [];
   }
 
+  // Solo {id, name, repoUrl, status}: ~10× más ligero y rápido. Incluye archivados.
+  async listarProyectosBare() {
+    const { projects } = await this._fetch("/api/projects?bare=true&includeArchived=true");
+    return projects || [];
+  }
+
   async proyecto(id) {
     const { project } = await this._fetch(`/api/projects/${encodeURIComponent(id)}`);
     return project;
@@ -53,9 +54,11 @@ export class McClient {
     return project;
   }
 
-  async crumbsDeProyecto(projectId) {
-    const { crumbs } = await this._fetch(`/api/crumbs?projectId=${encodeURIComponent(projectId)}`);
-    return crumbs || [];
+  async crumbsDeProyecto(projectId, limit) {
+    const q = limit ? `&limit=${limit}` : "";
+    const { crumbs } = await this._fetch(`/api/crumbs?projectId=${encodeURIComponent(projectId)}${q}`);
+    // Si el backend aún no soporta limit, recortamos aquí.
+    return limit ? (crumbs || []).slice(0, limit) : (crumbs || []);
   }
 
   async crearCrumb({ projectId, title, source, body, timestamp, isTest, dueAt }) {
@@ -85,6 +88,27 @@ export class McClient {
       body: JSON.stringify({ fileId, content }),
     });
     return file;
+  }
+
+  async actualizarProyecto(id, fields) {
+    const { project } = await this._fetch(`/api/projects/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(fields) });
+    return project;
+  }
+
+  // Varios crumbs en una llamada (acepta isTest y dueAt).
+  async crearCrumbs(projectId, crumbs) {
+    return this._fetch("/api/import", { method: "POST", body: JSON.stringify({ projectId, crumbs }) });
+  }
+
+  async subrayados(projectId) {
+    const d = await this._fetch(`/api/briefing/highlights?projectId=${encodeURIComponent(projectId)}`).catch(() => ({}));
+    return d.highlights || d.items || [];
+  }
+
+  async historialBriefings(kind, projectId) {
+    const q = kind === "project" ? `kind=project&projectId=${encodeURIComponent(projectId)}` : "kind=daily";
+    const d = await this._fetch(`/api/briefing/history?${q}`).catch(() => ({}));
+    return d.items || [];
   }
 
   // --- Pulso git y briefings por suscripción ---

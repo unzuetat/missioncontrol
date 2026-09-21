@@ -448,6 +448,27 @@ Comprueba que funciona: `https://TU-URL/api/ops/status` muestra el último
 keepalive y el último backup. Si `lastBackup` sigue en `null` pasadas 24 h,
 revisa los logs del cron en Vercel (pestaña **Logs**, filtra por `ops`).
 
+## `/import-mc` y `/export-mc` rápidos
+
+Los dos comandos de Claude Code delegan la mecánica en scripts para que el
+modelo solo escriba lo que necesita criterio:
+
+- `/import-mc` → `node agent/import.js --dir <repo>`: detecta el proyecto,
+  hace `git fetch` (+ `pull --ff-only` si es seguro) e imprime un digest de
+  ~3 KB (secciones vivas del CONTEXT.md, últimos crumbs, revisiones con fecha,
+  deploy, pulso git). `--full` para el detalle completo.
+- `/export-mc` → `node agent/export.js --check --dir <repo>` (qué hay ahora) +
+  un delta JSON pequeño escrito por el modelo (crumbs, revisiones, secciones del
+  CONTEXT.md que cambian) + `--apply <delta>`: sube crumbs, fusiona el
+  CONTEXT.md **por secciones** (nunca se reescribe entero), escribe
+  `docs/CONTEXT.md`, genera `DEPLOY_STATUS.md` desde `git log prod..test` y
+  fusiona el pulso git de ese repo. Un export completo tarda ~1 minuto.
+
+Ambos scripts leen `MC_API_URL`, `MC_API_KEY` y `MACHINE_ID` de
+`agent/.env.local`. Las functions de Vercel están fijadas a `fra1`
+(`vercel.json` → `regions`) para estar junto a Upstash (Frankfurt): con las
+functions en otra región cada comando Redis cuesta ~100 ms.
+
 ## Pulso git y briefings con tu suscripción de Claude
 
 Dos cosas corren **en tu ordenador**, no en Vercel, porque necesitan ver tus

@@ -12,7 +12,9 @@
     "restore": "node --env-file=.env.local scripts/restore.js",
     "pulse": "node --env-file=agent/.env.local agent/pulse.js",
     "briefing": "node --env-file=agent/.env.local agent/briefing.js",
-    "agent": "node --env-file=agent/.env.local agent/worker.js"
+    "agent": "node --env-file=agent/.env.local agent/worker.js",
+    "export": "node --env-file=agent/.env.local agent/export.js",
+    "import": "node --env-file=agent/.env.local agent/import.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

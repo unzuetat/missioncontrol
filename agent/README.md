@@ -72,3 +72,12 @@ Para que corra automáticamente cada hora (ejemplo con `cron`):
 - `agent/worker.js` (`npm run agent`): agente residente. Reclama trabajos de `POST /api/briefing/jobs?op=claim`
   (tipos `pulse` y `briefing`), los ejecuta con `collectPulse` / `generateBriefing` y devuelve el resultado con
   `?op=finish`. Cadencia 90 s (10 s tras actividad del dashboard). launchd `com.telmo.mc-agent` lo mantiene vivo.
+- `agent/import.js` (`npm run import -- --dir <repo> [--full] [--no-pull] [--project id]`): digest de arranque en una llamada
+  (detección, git sync seguro, CONTEXT.md por secciones, crumbs, revisiones, deploy, pulso). Lo usa `/import-mc`.
+- `agent/export.js` (`npm run export -- --check|--apply <delta.json> --dir <repo> [--dry --show]`): export en dos pasos.
+  El modelo escribe un delta (crumbs, revisiones con `dueAt`, secciones del CONTEXT.md a sustituir/añadir, meta) y el script
+  aplica: crumbs en batch, fusión por secciones (`agent/lib/context-md.js`), `docs/CONTEXT.md`, `DEPLOY_STATUS.md` automático,
+  pulso de ese repo (`pulseOne` + `uploadPulseOne`). Lo usa `/export-mc`.
+- `agent/lib/project-match.js`: detección de proyecto por repoUrl/slug con candidatos cuando hay ambigüedad (compartida).
+- `agent/pulse.js` ahora recorre los repos en paralelo (`worker_threads`, `PULSE_CONCURRENCY`, default 6: ~6 s para 30 repos)
+  y admite `--only <dir>` para fusionar un solo repo en el pulso de la máquina (~2 s).

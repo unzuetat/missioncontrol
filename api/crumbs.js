@@ -11,9 +11,10 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const { projectId } = req.query;
+    const limit = Math.max(0, parseInt(req.query.limit || '0', 10) || 0); // 0 = todos
     const crumbs = projectId
-      ? await getProjectCrumbs(projectId)
-      : await getRecentCrumbs(20);
+      ? await getProjectCrumbs(projectId, limit || undefined)
+      : await getRecentCrumbs(limit || 20);
     return res.status(200).json({ crumbs });
   }
 

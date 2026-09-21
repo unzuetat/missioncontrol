@@ -10,5 +10,8 @@
       "path": "/api/ops/daily",
       "schedule": "0 5 * * *"
     }
+  ],
+  "regions": [
+    "fra1"
   ]
 }
