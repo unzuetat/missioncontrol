@@ -3,7 +3,7 @@
  * Usa la MC_API_KEY para autenticarse contra el backend en Vercel.
  */
 
-import { slugify } from "./project-match.js";
+import { slugify, normalizeRepoUrl } from "./project-match.js";
 
 export class McClient {
   constructor({ baseUrl, apiKey }) {
@@ -140,21 +140,30 @@ export class McClient {
   }
 
   /**
-   * Asegura que el proyecto existe (por slug del nombre).
-   * Si no existe, lo crea con los metadatos que le pasemos.
+   * Asegura que el proyecto existe y devuelve su id.
+   * Busca primero por repoUrl normalizada (la carpeta local puede llamarse
+   * distinto que el proyecto en MC: `dlirium` → `delirantes`), y solo si no
+   * hay remoto o no coincide, por el slug del nombre. Si no existe, lo crea.
+   * Incluye archivados: sincronizar una carpeta de un proyecto archivado no
+   * debe crear un duplicado.
    */
   async asegurarProyecto({ nombre, repoUrl, techStack }) {
+    const proyectos = await this.listarProyectosBare();
+    const norm = normalizeRepoUrl(repoUrl);
+    if (norm) {
+      const porUrl = proyectos.filter((p) => normalizeRepoUrl(p.repoUrl) === norm);
+      if (porUrl.length >= 1) return porUrl[0].id;
+    }
     const id = slugify(nombre);
-    const proyectos = await this.listarProyectos();
     if (proyectos.find((p) => p.id === id)) return id;
-    await this.crearProyecto({
+    const creado = await this.crearProyecto({
       name: nombre,
       status: "desarrollo",
       repoUrl: repoUrl || "",
       techStack: techStack || "",
     });
-    return id;
+    return creado?.id || id;
   }
 }
 
-export { slugify };
+export { slugify, normalizeRepoUrl };
