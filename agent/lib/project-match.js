@@ -20,8 +20,9 @@ export function normalizeRepoUrl(url) {
     .replace(/^git@github\.com:/, "github.com/")
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
+    .replace(/\/+$/, "")
     .replace(/\.git$/, "")
-    .replace(/\/$/, "");
+    .replace(/\/+$/, "");
 }
 
 export function gitRemoteUrl(dir) {
